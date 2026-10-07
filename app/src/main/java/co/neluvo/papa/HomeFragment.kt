@@ -1,5 +1,5 @@
 //app/src/main/java/co/neluvo/papa/HomeFragment.kt
-//ver 1.00-22
+//ver 1.00-24
 package co.neluvo.papa
 
 import android.Manifest
@@ -16,8 +16,10 @@ import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.CheckBox
+import android.widget.FrameLayout
 import android.widget.NumberPicker
 import android.widget.TextView
 import android.widget.Toast
@@ -39,7 +41,14 @@ class HomeFragment : Fragment() {
     private lateinit var npHours: NumberPicker
     private lateinit var npMinutes: NumberPicker
 
+    private lateinit var chkScreenOff: CheckBox
+    private lateinit var npScreenOffSec: NumberPicker
+    private lateinit var overlayScreenOff: FrameLayout
+
     private var isRecording = false
+
+    private val screenOffHandler = Handler(Looper.getMainLooper())
+    private var screenOffRunnable: Runnable? = null
 
     private val timerHandler = Handler(Looper.getMainLooper())
     private var timerRunnable: Runnable? = null
@@ -72,11 +81,19 @@ class HomeFragment : Fragment() {
         npHours = view.findViewById(R.id.npHours)
         npMinutes = view.findViewById(R.id.npMinutes)
 
+        chkScreenOff = view.findViewById(R.id.chkScreenOff)
+        npScreenOffSec = view.findViewById(R.id.npScreenOffSec)
+        overlayScreenOff = view.findViewById(R.id.overlayScreenOff)
+
         npHours.minValue = 0
         npHours.maxValue = 23
         npMinutes.minValue = 0
         npMinutes.maxValue = 59
-        npMinutes.value = 30 // デフォルト30分
+        npMinutes.value = 30
+
+        npScreenOffSec.minValue = 3
+        npScreenOffSec.maxValue = 60
+        npScreenOffSec.value = 5
 
         tvVersion.text = "v" + AppVersion.VERSION_NAME
 
@@ -96,6 +113,10 @@ class HomeFragment : Fragment() {
             showAboutDialog()
         }
 
+        overlayScreenOff.setOnClickListener {
+            wakeScreen()
+        }
+
         checkAndShowCrashLog()
 
         return view
@@ -105,6 +126,7 @@ class HomeFragment : Fragment() {
         super.onResume()
         val filter = IntentFilter(RecordingService.ACTION_AMPLITUDE_UPDATE)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // Context.RECEIVER_NOT_EXPORTED の直接値である 4 を使用
             requireContext().registerReceiver(amplitudeReceiver, filter, 4)
         } else {
             @Suppress("UnspecifiedRegisterReceiverFlag")
@@ -140,16 +162,46 @@ class HomeFragment : Fragment() {
                 timerHandler.postDelayed(timerRunnable!!, totalMillis)
             }
         }
+
+        if (chkScreenOff.isChecked) {
+            val sec = npScreenOffSec.value
+            screenOffRunnable = Runnable {
+                turnOffScreen()
+            }
+            screenOffHandler.postDelayed(screenOffRunnable!!, sec * 1000L)
+        }
     }
 
     private fun stopRecordingService() {
+        screenOffRunnable?.let { screenOffHandler.removeCallbacks(it) }
         timerRunnable?.let { timerHandler.removeCallbacks(it) }
+        wakeScreen()
+
         val intent = Intent(requireContext(), RecordingService::class.java).apply {
             action = RecordingService.ACTION_STOP
         }
         requireContext().startService(intent)
         isRecording = false
         updateUi()
+    }
+
+    private fun turnOffScreen() {
+        if (!isRecording) return
+        activity?.window?.let { window ->
+            val lp = window.attributes
+            lp.screenBrightness = 0.01f
+            window.attributes = lp
+        }
+        overlayScreenOff.visibility = View.VISIBLE
+    }
+
+    private fun wakeScreen() {
+        activity?.window?.let { window ->
+            val lp = window.attributes
+            lp.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+            window.attributes = lp
+        }
+        overlayScreenOff.visibility = View.GONE
     }
 
     private fun updateUi() {
@@ -160,6 +212,8 @@ class HomeFragment : Fragment() {
             chkTimer.isEnabled = false
             npHours.isEnabled = false
             npMinutes.isEnabled = false
+            chkScreenOff.isEnabled = false
+            npScreenOffSec.isEnabled = false
             tvFilePath.text = "保存フォルダ: " + requireContext().getExternalFilesDir(null)?.absolutePath
         } else {
             tvStatus.text = "停止中"
@@ -168,6 +222,8 @@ class HomeFragment : Fragment() {
             chkTimer.isEnabled = true
             npHours.isEnabled = true
             npMinutes.isEnabled = true
+            chkScreenOff.isEnabled = true
+            npScreenOffSec.isEnabled = true
         }
     }
 

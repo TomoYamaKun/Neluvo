@@ -1,14 +1,16 @@
 //app/src/main/java/co/neluvo/papa/WaveformView.kt
-//ver 1.00-11
+//ver 1.00-23
 package co.neluvo.papa
 
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.View
-import kotlin.jvm.JvmOverloads
+import kotlin.math.max
+import kotlin.math.min
 
 class WaveformView @JvmOverloads constructor(
     context: Context,
@@ -16,85 +18,92 @@ class WaveformView @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : View(context, attrs, defStyleAttr) {
 
-    private val waveList = mutableListOf<Int>()
-    private var maxAmplitude = 32767f
-    private var playbackProgressRatio: Float = -1f
+    private val amplitudes = mutableListOf<Int>()
+    private var maxBars = 60
+    private var playbackProgress = -1f
 
-    private val wavePaint = Paint().apply {
+    private val barPaint = Paint().apply {
+        isAntiAlias = true
         color = Color.parseColor("#2196F3")
         style = Paint.Style.FILL
-        isAntiAlias = true
     }
 
-    private val progressPaint = Paint().apply {
-        color = Color.parseColor("#F44336")
-        strokeWidth = 6f
-        style = Paint.Style.STROKE
+    private val playedBarPaint = Paint().apply {
         isAntiAlias = true
+        color = Color.parseColor("#FF9800")
+        style = Paint.Style.FILL
     }
 
-    private val centerLinePaint = Paint().apply {
-        color = Color.parseColor("#E0E0E0")
+    private val baselinePaint = Paint().apply {
+        color = Color.parseColor("#CCCCCC")
         strokeWidth = 2f
-        style = Paint.Style.STROKE
+    }
+
+    private val rectF = RectF()
+
+    fun addAmplitude(amp: Int) {
+        amplitudes.add(amp)
+        if (amplitudes.size > maxBars) {
+            amplitudes.removeAt(0)
+        }
+        postInvalidateOnAnimation()
     }
 
     fun setWaveData(data: List<Int>) {
-        waveList.clear()
-        waveList.addAll(data)
-        invalidate()
+        amplitudes.clear()
+        amplitudes.addAll(data)
+        playbackProgress = -1f
+        postInvalidateOnAnimation()
     }
 
-    fun addAmplitude(amp: Int) {
-        waveList.add(amp)
-        if (waveList.size > 50) {
-            waveList.removeAt(0)
-        }
-        invalidate()
-    }
-
-    fun setPlaybackProgress(ratio: Float) {
-        playbackProgressRatio = ratio
-        invalidate()
+    fun setPlaybackProgress(progress: Float) {
+        playbackProgress = progress
+        postInvalidateOnAnimation()
     }
 
     fun clear() {
-        waveList.clear()
-        playbackProgressRatio = -1f
-        invalidate()
+        amplitudes.clear()
+        playbackProgress = -1f
+        postInvalidateOnAnimation()
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        maxBars = max(20, w / 9)
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        val w = width.toFloat()
-        val h = height.toFloat()
-        val centerY = h / 2f
+        val centerY = height / 2f
+        canvas.drawLine(0f, centerY, width.toFloat(), centerY, baselinePaint)
 
-        canvas.drawLine(0f, centerY, w, centerY, centerLinePaint)
+        if (amplitudes.isEmpty()) return
 
-        if (waveList.isEmpty()) return
-
-        val count = waveList.size
-        val barWidth = w / count.coerceAtLeast(1)
+        val count = amplitudes.size
+        val gap = 3f
+        val barWidth = max(2f, (width.toFloat() - (gap * (count + 1))) / count)
+        val maxAmp = 25000f
 
         for (i in 0 until count) {
-            val amp = waveList[i].coerceAtMost(32767)
-            val normalized = (amp / maxAmplitude).coerceIn(0.04f, 1.0f)
-            val barHeight = (h / 2f) * normalized
+            val amp = amplitudes[i].toFloat()
+            val normalized = min(1.0f, max(0.05f, amp / maxAmp))
+            val barHeight = max(4f, (height * 0.8f) * normalized)
 
-            val x = i * barWidth
-            val left = x + (barWidth * 0.15f)
-            val right = x + (barWidth * 0.85f)
-            val top = centerY - barHeight
-            val bottom = centerY + barHeight
+            val left = gap + i * (barWidth + gap)
+            val top = centerY - (barHeight / 2f)
+            val right = left + barWidth
+            val bottom = centerY + (barHeight / 2f)
 
-            canvas.drawRect(left, top, right, bottom, wavePaint)
-        }
+            rectF.set(left, top, right, bottom)
 
-        if (playbackProgressRatio in 0.0f..1.0f) {
-            val posX = w * playbackProgressRatio
-            canvas.drawLine(posX, 0f, posX, h, progressPaint)
+            val paint = if (playbackProgress >= 0f && (i.toFloat() / count.toFloat()) <= playbackProgress) {
+                playedBarPaint
+            } else {
+                barPaint
+            }
+
+            canvas.drawRoundRect(rectF, barWidth / 2f, barWidth / 2f, paint)
         }
     }
 }

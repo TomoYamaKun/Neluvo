@@ -1,5 +1,5 @@
 //app/src/main/java/co/neluvo/papa/RecordingService.kt
-//ver 1.00-08
+//ver 1.00-24
 package co.neluvo.papa
 
 import android.app.Notification
@@ -12,47 +12,38 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
-import android.util.Log
 import androidx.core.app.NotificationCompat
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.Executors
 
 class RecordingService : Service() {
 
     private var mediaRecorder: MediaRecorder? = null
     private var isRecording = false
-    private var currentOutputFile: String? = null
+    private var currentFileName = ""
 
     private lateinit var dbHelper: AmplitudeDbHelper
-    private val dbExecutor = Executors.newSingleThreadExecutor()
-
     private val handler = Handler(Looper.getMainLooper())
-    private val amplitudeChecker = object : Runnable {
+
+    private val amplitudeRunnable = object : Runnable {
         override fun run() {
             if (isRecording && mediaRecorder != null) {
                 try {
-                    val maxAmplitude = mediaRecorder?.maxAmplitude ?: 0
-                    Log.d("RecordingService", "Current Amplitude: $maxAmplitude")
-
+                    val amp = mediaRecorder?.maxAmplitude ?: 0
+                    if (currentFileName.isNotEmpty()) {
+                        dbHelper.insertAmplitude(currentFileName, amp)
+                    }
                     val intent = Intent(ACTION_AMPLITUDE_UPDATE).apply {
-                        putExtra(EXTRA_AMPLITUDE, maxAmplitude)
+                        putExtra(EXTRA_AMPLITUDE, amp)
+                        setPackage(packageName)
                     }
                     sendBroadcast(intent)
-
-                    currentOutputFile?.let { path ->
-                        val fileName = File(path).name
-                        val timestamp = System.currentTimeMillis()
-                        dbExecutor.execute {
-                            dbHelper.insertAmplitude(fileName, timestamp, maxAmplitude)
-                        }
-                    }
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
-                handler.postDelayed(this, 1000)
+                handler.postDelayed(this, 100)
             }
         }
     }
@@ -60,18 +51,13 @@ class RecordingService : Service() {
     override fun onCreate() {
         super.onCreate()
         dbHelper = AmplitudeDbHelper(this)
-    }
-
-    override fun onBind(intent: Intent?): IBinder? {
-        return null
+        createNotificationChannel()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val action = intent?.action
-        if (action == ACTION_START) {
-            startRecording()
-        } else if (action == ACTION_STOP) {
-            stopRecording()
+        when (intent?.action) {
+            ACTION_START -> startRecording()
+            ACTION_STOP -> stopRecording()
         }
         return START_STICKY
     }
@@ -79,42 +65,39 @@ class RecordingService : Service() {
     private fun startRecording() {
         if (isRecording) return
 
-        startForegroundServiceNotification()
+        val sdf = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
+        currentFileName = "neluvo_${sdf.format(Date())}.m4a"
+        val outFile = File(getExternalFilesDir(null), currentFileName)
 
-        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-        val outputDir = getExternalFilesDir(null)
-        val outputFile = File(outputDir, "neluvo_${timeStamp}.m4a")
-        currentOutputFile = outputFile.absolutePath
-
-        mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            MediaRecorder(this)
-        } else {
-            @Suppress("DEPRECATION")
-            MediaRecorder()
-        }.apply {
-            setAudioSource(MediaRecorder.AudioSource.MIC)
-            setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-            setAudioSamplingRate(16000)
-            setAudioChannels(1)
-            setAudioEncodingBitRate(32000)
-            setOutputFile(currentOutputFile)
-
-            try {
+        try {
+            mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                MediaRecorder(this)
+            } else {
+                @Suppress("DEPRECATION")
+                MediaRecorder()
+            }.apply {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                setOutputFile(outFile.absolutePath)
                 prepare()
                 start()
-                isRecording = true
-                handler.post(amplitudeChecker)
-            } catch (e: Exception) {
-                e.printStackTrace()
             }
+
+            isRecording = true
+            startForeground(NOTIFICATION_ID, createNotification())
+            handler.post(amplitudeRunnable)
+
+        } catch (e: Exception) {
+            e.printStackTrace()
+            stopSelf()
         }
     }
 
     private fun stopRecording() {
         if (!isRecording) return
-
-        handler.removeCallbacks(amplitudeChecker)
+        isRecording = false
+        handler.removeCallbacks(amplitudeRunnable)
 
         try {
             mediaRecorder?.apply {
@@ -125,46 +108,41 @@ class RecordingService : Service() {
             e.printStackTrace()
         } finally {
             mediaRecorder = null
-            isRecording = false
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
         }
+
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        dbExecutor.shutdown()
-    }
-
-    private fun startForegroundServiceNotification() {
-        val channelId = "neluvo_recorder_channel"
-        val channelName = "Neluvo 録音サービス"
-
+    private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                channelId,
-                channelName,
+                CHANNEL_ID,
+                "録音サービス",
                 NotificationManager.IMPORTANCE_LOW
             )
             val manager = getSystemService(NotificationManager::class.java)
             manager?.createNotificationChannel(channel)
         }
-
-        val notification: Notification = NotificationCompat.Builder(this, channelId)
-            .setContentTitle("Neluvo 録音中")
-            .setContentText("音声をバックグラウンドで収集しています...")
-            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .build()
-
-        startForeground(NOTIFICATION_ID, notification)
     }
 
+    private fun createNotification(): Notification {
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Neluvo Papa 録音中")
+            .setContentText("音量をバックグラウンド記録中...")
+            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setOngoing(true)
+            .build()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
     companion object {
-        const val ACTION_START = "ACTION_START"
-        const val ACTION_STOP = "ACTION_STOP"
-        const val ACTION_AMPLITUDE_UPDATE = "co.neluvo.papa.ACTION_AMPLITUDE_UPDATE"
-        const val EXTRA_AMPLITUDE = "EXTRA_AMPLITUDE"
+        const val ACTION_START = "co.neluvo.papa.ACTION_START"
+        const val ACTION_STOP = "co.neluvo.papa.ACTION_STOP"
+        const val ACTION_AMPLITUDE_UPDATE = "co.neluvo.papa.AMPLITUDE_UPDATE"
+        const val EXTRA_AMPLITUDE = "extra_amplitude"
+        private const val CHANNEL_ID = "recording_channel"
         private const val NOTIFICATION_ID = 1001
     }
 }
