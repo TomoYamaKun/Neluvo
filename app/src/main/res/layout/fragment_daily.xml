@@ -1,58 +1,156 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--//app/src/main/res/layout/fragment_daily.xml-->
-<!--ver 1.00-08-->
-<ScrollView android:fillViewport="true" android:layout_height="match_parent" android:layout_width="match_parent" xmlns:android="http://schemas.android.com/apk/res/android">
+<!--ver 1.00-22-->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
 
-    <LinearLayout android:layout_height="wrap_content" android:layout_width="match_parent" android:orientation="vertical" android:padding="16dp">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
 
-        <TextView android:layout_height="wrap_content" android:layout_marginBottom="8dp" android:layout_width="wrap_content" android:text="録音データ選択" android:textSize="16sp" android:textStyle="bold"/>
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="録音データ選択"
+            android:textStyle="bold" />
 
-        <Spinner android:id="@+id/spinnerFiles" android:layout_height="48dp" android:layout_marginBottom="12dp" android:layout_width="match_parent"/>
+        <Spinner
+            android:id="@+id/spinnerFiles"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp" />
 
-        <TextView android:id="@+id/tvFileInfo" android:layout_height="wrap_content" android:layout_marginBottom="12dp" android:layout_width="match_parent" android:text="ファイルが選択されていません" android:textColor="#666666" android:textSize="13sp"/>
+        <TextView
+            android:id="@+id/tvFileInfo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#666666"
+            android:textSize="12sp" />
 
-        <!-- 音声波形グラフ -->
-        <TextView android:layout_height="wrap_content" android:layout_marginBottom="4dp" android:layout_width="wrap_content" android:text="音量波形グラフ" android:textSize="14sp" android:textStyle="bold"/>
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="音量波形グラフ (ファイル全体)"
+            android:textStyle="bold" />
 
-        <co.neluvo.papa.WaveformView android:background="#FAFAFA" android:id="@+id/waveformDaily" android:layout_height="120dp" android:layout_marginBottom="12dp" android:layout_width="match_parent"/>
+        <co.neluvo.papa.WaveformView
+            android:id="@+id/waveformDaily"
+            android:layout_width="match_parent"
+            android:layout_height="120dp"
+            android:layout_marginTop="4dp"
+            android:background="#F5F5F5" />
 
-        <SeekBar android:id="@+id/seekBar" android:layout_height="wrap_content" android:layout_marginBottom="4dp" android:layout_width="match_parent"/>
+        <SeekBar
+            android:id="@+id/seekBar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp" />
 
-        <LinearLayout android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:layout_width="match_parent" android:orientation="horizontal">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
 
-            <TextView android:id="@+id/tvCurrentTime" android:layout_height="wrap_content" android:layout_weight="1" android:layout_width="0dp" android:text="00:00:00" android:textSize="12sp"/>
+            <TextView
+                android:id="@+id/tvCurrentTime"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="00:00:00" />
 
-            <TextView android:id="@+id/tvTotalTime" android:layout_height="wrap_content" android:layout_width="wrap_content" android:text="00:00:00" android:textSize="12sp"/>
-
+            <TextView
+                android:id="@+id/tvTotalTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="00:00:00" />
         </LinearLayout>
 
-        <LinearLayout android:gravity="center" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:layout_width="match_parent" android:orientation="horizontal">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
 
-            <Button android:id="@+id/btnPlay" android:layout_height="48dp" android:layout_marginEnd="16dp" android:layout_width="120dp" android:text="再生"/>
+            <Button
+                android:id="@+id/btnPlay"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="再生" />
 
-            <Button android:enabled="false" android:id="@+id/btnStopPlay" android:layout_height="48dp" android:layout_width="120dp" android:text="停止"/>
+            <Space
+                android:layout_width="8dp"
+                android:layout_height="wrap_content" />
 
+            <Button
+                android:id="@+id/btnStopPlay"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:enabled="false"
+                android:text="停止" />
         </LinearLayout>
 
-        <View android:background="#E0E0E0" android:layout_height="1dp" android:layout_marginBottom="12dp" android:layout_width="match_parent"/>
+        <!-- 音量調整 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-        <LinearLayout android:gravity="center_vertical" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:layout_width="match_parent" android:orientation="horizontal">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="音量 " />
 
-            <TextView android:layout_height="wrap_content" android:layout_marginEnd="8dp" android:layout_width="wrap_content" android:text="音量" android:textSize="14sp"/>
+            <SeekBar
+                android:id="@+id/seekBarVolume"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
 
-            <SeekBar android:id="@+id/seekBarVolume" android:layout_height="wrap_content" android:layout_weight="1" android:layout_width="0dp"/>
-
-            <Button android:id="@+id/btnMute" android:layout_height="40dp" android:layout_marginStart="8dp" android:layout_width="80dp" android:text="消音" android:textSize="12sp"/>
-
+            <Button
+                android:id="@+id/btnMute"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="消音" />
         </LinearLayout>
 
-        <View android:background="#E0E0E0" android:layout_height="1dp" android:layout_marginBottom="12dp" android:layout_width="match_parent"/>
+        <!-- 円グラフ ＆ 分析 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="音量レベル分析 (4段階)"
+            android:textStyle="bold" />
 
-        <!-- 4段階集計表示 -->
-        <TextView android:layout_height="wrap_content" android:layout_marginBottom="8dp" android:layout_width="wrap_content" android:text="音量レベル分析 (4段階)" android:textSize="14sp" android:textStyle="bold"/>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-        <TextView android:id="@+id/tvAnalysis" android:layout_height="wrap_content" android:layout_width="match_parent" android:lineSpacingExtra="4dp" android:text="データ解析中..." android:textColor="#424242" android:textSize="13sp"/>
+            <co.neluvo.papa.PieChartView
+                android:id="@+id/pieChartView"
+                android:layout_width="120dp"
+                android:layout_height="120dp" />
+
+            <TextView
+                android:id="@+id/tvAnalysis"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_weight="1"
+                android:text="分析中..."
+                android:textSize="12sp" />
+        </LinearLayout>
 
     </LinearLayout>
-
 </ScrollView>

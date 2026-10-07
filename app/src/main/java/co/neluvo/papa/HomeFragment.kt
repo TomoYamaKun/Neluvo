@@ -1,5 +1,5 @@
 //app/src/main/java/co/neluvo/papa/HomeFragment.kt
-//ver 1.00-20
+//ver 1.00-22
 package co.neluvo.papa
 
 import android.Manifest
@@ -11,10 +11,14 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.CheckBox
+import android.widget.NumberPicker
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -31,7 +35,14 @@ class HomeFragment : Fragment() {
     private lateinit var btnAbout: Button
     private lateinit var waveformView: WaveformView
 
+    private lateinit var chkTimer: CheckBox
+    private lateinit var npHours: NumberPicker
+    private lateinit var npMinutes: NumberPicker
+
     private var isRecording = false
+
+    private val timerHandler = Handler(Looper.getMainLooper())
+    private var timerRunnable: Runnable? = null
 
     private val amplitudeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -56,6 +67,16 @@ class HomeFragment : Fragment() {
         tvVersion = view.findViewById(R.id.tvVersion)
         btnAbout = view.findViewById(R.id.btnAbout)
         waveformView = view.findViewById(R.id.waveformView)
+
+        chkTimer = view.findViewById(R.id.chkTimer)
+        npHours = view.findViewById(R.id.npHours)
+        npMinutes = view.findViewById(R.id.npMinutes)
+
+        npHours.minValue = 0
+        npHours.maxValue = 23
+        npMinutes.minValue = 0
+        npMinutes.maxValue = 59
+        npMinutes.value = 30 // デフォルト30分
 
         tvVersion.text = "v" + AppVersion.VERSION_NAME
 
@@ -100,6 +121,56 @@ class HomeFragment : Fragment() {
         }
     }
 
+    private fun startRecordingService() {
+        val intent = Intent(requireContext(), RecordingService::class.java).apply {
+            action = RecordingService.ACTION_START
+        }
+        ContextCompat.startForegroundService(requireContext(), intent)
+        isRecording = true
+        waveformView.clear()
+        updateUi()
+
+        if (chkTimer.isChecked) {
+            val totalMillis = ((npHours.value * 3600) + (npMinutes.value * 60)) * 1000L
+            if (totalMillis > 0) {
+                timerRunnable = Runnable {
+                    stopRecordingService()
+                    Toast.makeText(requireContext(), "タイマーにより録音を自動停止しました", Toast.LENGTH_LONG).show()
+                }
+                timerHandler.postDelayed(timerRunnable!!, totalMillis)
+            }
+        }
+    }
+
+    private fun stopRecordingService() {
+        timerRunnable?.let { timerHandler.removeCallbacks(it) }
+        val intent = Intent(requireContext(), RecordingService::class.java).apply {
+            action = RecordingService.ACTION_STOP
+        }
+        requireContext().startService(intent)
+        isRecording = false
+        updateUi()
+    }
+
+    private fun updateUi() {
+        if (isRecording) {
+            tvStatus.text = "録音中..."
+            btnStart.isEnabled = false
+            btnStop.isEnabled = true
+            chkTimer.isEnabled = false
+            npHours.isEnabled = false
+            npMinutes.isEnabled = false
+            tvFilePath.text = "保存フォルダ: " + requireContext().getExternalFilesDir(null)?.absolutePath
+        } else {
+            tvStatus.text = "停止中"
+            btnStart.isEnabled = true
+            btnStop.isEnabled = false
+            chkTimer.isEnabled = true
+            npHours.isEnabled = true
+            npMinutes.isEnabled = true
+        }
+    }
+
     private fun checkAndShowCrashLog() {
         val crashLog = CrashHandler.getSavedCrashLog(requireContext())
         if (!crashLog.isNullOrEmpty()) {
@@ -137,13 +208,13 @@ class HomeFragment : Fragment() {
     }
 
     private fun showIconSelectDialog() {
-        val items = arrayOf("🌙 月デザイン (デフォルト)", "🌊 波デザイン")
+        val items = arrayOf("🌙 月デザイン", "🌊 波デザイン")
         AlertDialog.Builder(requireContext())
             .setTitle("アプリアイコンの選択")
             .setItems(items) { _, which ->
                 when (which) {
-                    0 -> changeAppIcon(useMoonIcon = true)
-                    1 -> changeAppIcon(useMoonIcon = false)
+                    0 -> changeAppIcon(true)
+                    1 -> changeAppIcon(false)
                 }
             }
             .setNegativeButton("キャンセル", null)
@@ -158,33 +229,15 @@ class HomeFragment : Fragment() {
 
         try {
             if (useMoonIcon) {
-                pm.setComponentEnabledSetting(
-                    moonAlias,
-                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                    PackageManager.DONT_KILL_APP
-                )
-                pm.setComponentEnabledSetting(
-                    waveAlias,
-                    PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                    PackageManager.DONT_KILL_APP
-                )
-                Toast.makeText(context, "アイコンを「月デザイン」に変更しました！", Toast.LENGTH_SHORT).show()
+                pm.setComponentEnabledSetting(moonAlias, PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP)
+                pm.setComponentEnabledSetting(waveAlias, PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)
             } else {
-                pm.setComponentEnabledSetting(
-                    waveAlias,
-                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                    PackageManager.DONT_KILL_APP
-                )
-                pm.setComponentEnabledSetting(
-                    moonAlias,
-                    PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                    PackageManager.DONT_KILL_APP
-                )
-                Toast.makeText(context, "アイコンを「波デザイン」に変更しました！", Toast.LENGTH_SHORT).show()
+                pm.setComponentEnabledSetting(waveAlias, PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP)
+                pm.setComponentEnabledSetting(moonAlias, PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)
             }
+            Toast.makeText(context, "アイコンを変更しました！", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             e.printStackTrace()
-            Toast.makeText(context, "アイコンの変更に失敗しました: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -192,56 +245,14 @@ class HomeFragment : Fragment() {
         val clipboard = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
         val clip = android.content.ClipData.newPlainText("App Log", text)
         clipboard.setPrimaryClip(clip)
-        Toast.makeText(requireContext(), "ログをクリップボードにコピーしました", Toast.LENGTH_SHORT).show()
-    }
-
-    private fun startRecordingService() {
-        val intent = Intent(requireContext(), RecordingService::class.java).apply {
-            action = RecordingService.ACTION_START
-        }
-        ContextCompat.startForegroundService(requireContext(), intent)
-        isRecording = true
-        waveformView.clear()
-        updateUi()
-    }
-
-    private fun stopRecordingService() {
-        val intent = Intent(requireContext(), RecordingService::class.java).apply {
-            action = RecordingService.ACTION_STOP
-        }
-        requireContext().startService(intent)
-        isRecording = false
-        updateUi()
-    }
-
-    private fun updateUi() {
-        if (isRecording) {
-            tvStatus.text = "録音中..."
-            btnStart.isEnabled = false
-            btnStop.isEnabled = true
-            tvFilePath.text = "保存フォルダ: " + requireContext().getExternalFilesDir(null)?.absolutePath
-        } else {
-            tvStatus.text = "停止中"
-            btnStart.isEnabled = true
-            btnStop.isEnabled = false
-        }
+        Toast.makeText(requireContext(), "ログをコピーしました", Toast.LENGTH_SHORT).show()
     }
 
     private fun checkPermissions(): Boolean {
-        val recordAudioGranted = ContextCompat.checkSelfPermission(
-            requireContext(),
-            Manifest.permission.RECORD_AUDIO
-        ) == PackageManager.PERMISSION_GRANTED
-
+        val recordAudioGranted = ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
         val notificationGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.checkSelfPermission(
-                requireContext(),
-                Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED
-        } else {
-            true
-        }
-
+            ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        } else true
         return recordAudioGranted && notificationGranted
     }
 
@@ -250,10 +261,6 @@ class HomeFragment : Fragment() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
-        requestPermissions(permissions.toTypedArray(), REQUEST_CODE_PERMISSIONS)
-    }
-
-    companion object {
-        private const val REQUEST_CODE_PERMISSIONS = 200
+        requestPermissions(permissions.toTypedArray(), 200)
     }
 }

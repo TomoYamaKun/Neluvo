@@ -1,5 +1,5 @@
 //app/src/main/java/co/neluvo/papa/DailyFragment.kt
-//ver 1.00-09
+//ver 1.00-22
 package co.neluvo.papa
 
 import android.content.Context
@@ -27,6 +27,7 @@ class DailyFragment : Fragment() {
     private lateinit var spinnerFiles: Spinner
     private lateinit var tvFileInfo: TextView
     private lateinit var waveformDaily: WaveformView
+    private lateinit var pieChartView: PieChartView
     private lateinit var seekBar: SeekBar
     private lateinit var tvCurrentTime: TextView
     private lateinit var tvTotalTime: TextView
@@ -35,7 +36,6 @@ class DailyFragment : Fragment() {
 
     private lateinit var seekBarVolume: SeekBar
     private lateinit var btnMute: Button
-
     private lateinit var tvAnalysis: TextView
 
     private var fileList: List<File> = emptyList()
@@ -85,6 +85,7 @@ class DailyFragment : Fragment() {
         spinnerFiles = view.findViewById(R.id.spinnerFiles)
         tvFileInfo = view.findViewById(R.id.tvFileInfo)
         waveformDaily = view.findViewById(R.id.waveformDaily)
+        pieChartView = view.findViewById(R.id.pieChartView)
         seekBar = view.findViewById(R.id.seekBar)
         tvCurrentTime = view.findViewById(R.id.tvCurrentTime)
         tvTotalTime = view.findViewById(R.id.tvTotalTime)
@@ -161,11 +162,8 @@ class DailyFragment : Fragment() {
             btnStopPlay.isEnabled = false
             waveformDaily.clear()
             tvAnalysis.text = "データなし"
-            val adapter = ArrayAdapter(
-                requireContext(),
-                android.R.layout.simple_spinner_item,
-                listOf("（録音なし）")
-            )
+            pieChartView.setData(0, 0, 0, 0)
+            val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, listOf("（録音なし）"))
             adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
             spinnerFiles.adapter = adapter
             return
@@ -176,11 +174,7 @@ class DailyFragment : Fragment() {
             "${file.name} (${sizeKb} KB)"
         }
 
-        val adapter = ArrayAdapter(
-            requireContext(),
-            android.R.layout.simple_spinner_item,
-            fileNames
-        )
+        val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, fileNames)
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         spinnerFiles.adapter = adapter
 
@@ -190,14 +184,25 @@ class DailyFragment : Fragment() {
     private fun loadGraphAndAnalysis(fileName: String) {
         dbExecutor.execute {
             val records = dbHelper.getAmplitudesForFile(fileName)
-            val amps = records.map { it.amplitude }
+            val rawAmps = records.map { it.amplitude }
+
+            // メモリ保護: 最大100件に間引いてグラフ表示
+            val maxPoints = 100
+            val sampledAmps = if (rawAmps.size > maxPoints) {
+                val step = rawAmps.size.toFloat() / maxPoints
+                (0 until maxPoints).map { i ->
+                    rawAmps[(i * step).toInt().coerceAtMost(rawAmps.size - 1)]
+                }
+            } else {
+                rawAmps
+            }
 
             var quietCount = 0
             var lowCount = 0
             var midCount = 0
             var highCount = 0
 
-            for (amp in amps) {
+            for (amp in rawAmps) {
                 when {
                     amp < 1000 -> quietCount++
                     amp < 5000 -> lowCount++
@@ -206,7 +211,7 @@ class DailyFragment : Fragment() {
                 }
             }
 
-            val total = amps.size.coerceAtLeast(1)
+            val total = rawAmps.size.coerceAtLeast(1)
             val qPct = quietCount * 100 / total
             val lPct = lowCount * 100 / total
             val mPct = midCount * 100 / total
@@ -214,13 +219,14 @@ class DailyFragment : Fragment() {
 
             val analysisText = """
                 ・静寂 (安眠): $qPct% ($quietCount 秒)
-                ・小 (寝返り/小音): $lPct% ($lowCount 秒)
+                ・小 (寝返り): $lPct% ($lowCount 秒)
                 ・中 (中いびき): $mPct% ($midCount 秒)
                 ・大 (大いびき): $hPct% ($highCount 秒)
             """.trimIndent()
 
             handler.post {
-                waveformDaily.setWaveData(amps)
+                waveformDaily.setWaveData(sampledAmps)
+                pieChartView.setData(quietCount, lowCount, midCount, highCount)
                 tvAnalysis.text = analysisText
             }
         }
@@ -228,12 +234,7 @@ class DailyFragment : Fragment() {
 
     private fun setupListeners() {
         spinnerFiles.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(
-                parent: AdapterView<*>?,
-                view: View?,
-                position: Int,
-                id: Long
-            ) {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
                 if (fileList.isNotEmpty() && position < fileList.size) {
                     stopAudio()
                     selectedFile = fileList[position]
@@ -248,11 +249,7 @@ class DailyFragment : Fragment() {
         }
 
         btnPlay.setOnClickListener {
-            if (isPlaying) {
-                pauseAudio()
-            } else {
-                playAudio()
-            }
+            if (isPlaying) pauseAudio() else playAudio()
         }
 
         btnStopPlay.setOnClickListener {
@@ -284,9 +281,7 @@ class DailyFragment : Fragment() {
             mediaPlayer = MediaPlayer().apply {
                 setDataSource(file.absolutePath)
                 prepare()
-                setOnCompletionListener {
-                    stopAudio()
-                }
+                setOnCompletionListener { stopAudio() }
             }
             seekBar.max = mediaPlayer!!.duration
             tvTotalTime.text = formatMs(mediaPlayer!!.duration)
