@@ -1,5 +1,5 @@
 //app/src/main/java/co/neluvo/papa/RecordingService.kt
-//ver 1.00-06
+//ver 1.00-08
 package co.neluvo.papa
 
 import android.app.Notification
@@ -18,12 +18,16 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.Executors
 
 class RecordingService : Service() {
 
     private var mediaRecorder: MediaRecorder? = null
     private var isRecording = false
     private var currentOutputFile: String? = null
+
+    private lateinit var dbHelper: AmplitudeDbHelper
+    private val dbExecutor = Executors.newSingleThreadExecutor()
 
     private val handler = Handler(Looper.getMainLooper())
     private val amplitudeChecker = object : Runnable {
@@ -32,12 +36,30 @@ class RecordingService : Service() {
                 try {
                     val maxAmplitude = mediaRecorder?.maxAmplitude ?: 0
                     Log.d("RecordingService", "Current Amplitude: $maxAmplitude")
+
+                    val intent = Intent(ACTION_AMPLITUDE_UPDATE).apply {
+                        putExtra(EXTRA_AMPLITUDE, maxAmplitude)
+                    }
+                    sendBroadcast(intent)
+
+                    currentOutputFile?.let { path ->
+                        val fileName = File(path).name
+                        val timestamp = System.currentTimeMillis()
+                        dbExecutor.execute {
+                            dbHelper.insertAmplitude(fileName, timestamp, maxAmplitude)
+                        }
+                    }
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
-                handler.postDelayed(this, 1000) // 1秒間隔で音量検知
+                handler.postDelayed(this, 1000)
             }
         }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        dbHelper = AmplitudeDbHelper(this)
     }
 
     override fun onBind(intent: Intent?): IBinder? {
@@ -73,9 +95,9 @@ class RecordingService : Service() {
             setAudioSource(MediaRecorder.AudioSource.MIC)
             setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-            setAudioSamplingRate(16000) // 16kHzでサイズ圧縮
-            setAudioChannels(1)         // モノラルでサイズ圧縮
-            setAudioEncodingBitRate(32000) // 32kbpsに抑制
+            setAudioSamplingRate(16000)
+            setAudioChannels(1)
+            setAudioEncodingBitRate(32000)
             setOutputFile(currentOutputFile)
 
             try {
@@ -109,6 +131,11 @@ class RecordingService : Service() {
         }
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        dbExecutor.shutdown()
+    }
+
     private fun startForegroundServiceNotification() {
         val channelId = "neluvo_recorder_channel"
         val channelName = "Neluvo 録音サービス"
@@ -136,6 +163,8 @@ class RecordingService : Service() {
     companion object {
         const val ACTION_START = "ACTION_START"
         const val ACTION_STOP = "ACTION_STOP"
+        const val ACTION_AMPLITUDE_UPDATE = "co.neluvo.papa.ACTION_AMPLITUDE_UPDATE"
+        const val EXTRA_AMPLITUDE = "EXTRA_AMPLITUDE"
         private const val NOTIFICATION_ID = 1001
     }
 }

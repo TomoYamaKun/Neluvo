@@ -1,14 +1,94 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--//app/src/main/res/layout/fragment_home.xml-->
-<!--ver 1.00-06-->
-<LinearLayout android:gravity="center" android:layout_height="match_parent" android:layout_width="match_parent" android:orientation="vertical" android:padding="16dp" xmlns:android="http://schemas.android.com/apk/res/android">
+<!--ver 1.00-14-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
 
-    <TextView android:id="@+id/tvStatus" android:layout_height="wrap_content" android:layout_marginBottom="32dp" android:layout_width="wrap_content" android:text="停止中" android:textSize="24sp" android:textStyle="bold"/>
+    <!-- ヘッダー＆バージョン表記 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingBottom="12dp">
 
-    <Button android:id="@+id/btnStart" android:layout_height="60dp" android:layout_marginBottom="16dp" android:layout_width="200dp" android:text="録音開始"/>
+        <TextView
+            android:id="@+id/tvAppTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Neluvo Papa"
+            android:textSize="20sp"
+            android:textStyle="bold" />
 
-    <Button android:enabled="false" android:id="@+id/btnStop" android:layout_height="60dp" android:layout_width="200dp" android:text="録音停止"/>
+        <TextView
+            android:id="@+id/tvVersion"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#757575"
+            android:textSize="12sp"
+            android:text="v1.00-14" />
 
-    <TextView android:id="@+id/tvFilePath" android:layout_height="wrap_content" android:layout_marginTop="32dp" android:layout_width="wrap_content" android:padding="8dp" android:textColor="#666666" android:textSize="12sp"/>
+        <Button
+            android:id="@+id/btnAbout"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="About / ログ"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tvStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="8dp"
+        android:text="停止中"
+        android:textSize="16sp" />
+
+    <co.neluvo.papa.WaveformView
+        android:id="@+id/waveformView"
+        android:layout_width="match_parent"
+        android:layout_height="120dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="16dp"
+        android:background="#F5F5F5" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnStart"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="録音開始" />
+
+        <Space
+            android:layout_width="16dp"
+            android:layout_height="wrap_content" />
+
+        <Button
+            android:id="@+id/btnStop"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:enabled="false"
+            android:text="録音停止" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tvFilePath"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:textColor="#666666"
+        android:textSize="12sp"
+        android:text="保存フォルダ: -" />
 
 </LinearLayout>

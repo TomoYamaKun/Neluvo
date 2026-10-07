@@ -1,5 +1,5 @@
 //app/src/main/java/co/neluvo/papa/DailyFragment.kt
-//ver 1.00-06
+//ver 1.00-09
 package co.neluvo.papa
 
 import android.content.Context
@@ -20,11 +20,13 @@ import android.widget.TextView
 import androidx.fragment.app.Fragment
 import java.io.File
 import java.util.Locale
+import java.util.concurrent.Executors
 
 class DailyFragment : Fragment() {
 
     private lateinit var spinnerFiles: Spinner
     private lateinit var tvFileInfo: TextView
+    private lateinit var waveformDaily: WaveformView
     private lateinit var seekBar: SeekBar
     private lateinit var tvCurrentTime: TextView
     private lateinit var tvTotalTime: TextView
@@ -33,6 +35,8 @@ class DailyFragment : Fragment() {
 
     private lateinit var seekBarVolume: SeekBar
     private lateinit var btnMute: Button
+
+    private lateinit var tvAnalysis: TextView
 
     private var fileList: List<File> = emptyList()
     private var selectedFile: File? = null
@@ -44,15 +48,25 @@ class DailyFragment : Fragment() {
     private var isMuted = false
     private var previousVolume = 0
 
+    private lateinit var dbHelper: AmplitudeDbHelper
+    private val dbExecutor = Executors.newSingleThreadExecutor()
+
     private val handler = Handler(Looper.getMainLooper())
     private val updateProgressRunnable = object : Runnable {
         override fun run() {
             mediaPlayer?.let { player ->
                 if (player.isPlaying) {
                     val currentPos = player.currentPosition
+                    val duration = player.duration
                     seekBar.progress = currentPos
                     tvCurrentTime.text = formatMs(currentPos)
-                    handler.postDelayed(this, 500)
+
+                    if (duration > 0) {
+                        val ratio = currentPos.toFloat() / duration.toFloat()
+                        waveformDaily.setPlaybackProgress(ratio)
+                    }
+
+                    handler.postDelayed(this, 300)
                 }
             }
         }
@@ -65,10 +79,12 @@ class DailyFragment : Fragment() {
     ): View? {
         val view = inflater.inflate(R.layout.fragment_daily, container, false)
 
+        dbHelper = AmplitudeDbHelper(requireContext())
         audioManager = requireContext().getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
         spinnerFiles = view.findViewById(R.id.spinnerFiles)
         tvFileInfo = view.findViewById(R.id.tvFileInfo)
+        waveformDaily = view.findViewById(R.id.waveformDaily)
         seekBar = view.findViewById(R.id.seekBar)
         tvCurrentTime = view.findViewById(R.id.tvCurrentTime)
         tvTotalTime = view.findViewById(R.id.tvTotalTime)
@@ -77,6 +93,7 @@ class DailyFragment : Fragment() {
 
         seekBarVolume = view.findViewById(R.id.seekBarVolume)
         btnMute = view.findViewById(R.id.btnMute)
+        tvAnalysis = view.findViewById(R.id.tvAnalysis)
 
         setupVolumeControl()
         setupListeners()
@@ -123,14 +140,6 @@ class DailyFragment : Fragment() {
         }
     }
 
-    override fun setUserVisibleHint(isVisibleToUser: Boolean) {
-        @Suppress("DEPRECATION")
-        super.setUserVisibleHint(isVisibleToUser)
-        if (isVisibleToUser && ::spinnerFiles.isInitialized) {
-            loadAudioFiles()
-        }
-    }
-
     override fun onResume() {
         super.onResume()
         loadAudioFiles()
@@ -150,6 +159,8 @@ class DailyFragment : Fragment() {
             tvFileInfo.text = "録音データが見つかりません"
             btnPlay.isEnabled = false
             btnStopPlay.isEnabled = false
+            waveformDaily.clear()
+            tvAnalysis.text = "データなし"
             val adapter = ArrayAdapter(
                 requireContext(),
                 android.R.layout.simple_spinner_item,
@@ -176,6 +187,45 @@ class DailyFragment : Fragment() {
         btnPlay.isEnabled = true
     }
 
+    private fun loadGraphAndAnalysis(fileName: String) {
+        dbExecutor.execute {
+            val records = dbHelper.getAmplitudesForFile(fileName)
+            val amps = records.map { it.amplitude }
+
+            var quietCount = 0
+            var lowCount = 0
+            var midCount = 0
+            var highCount = 0
+
+            for (amp in amps) {
+                when {
+                    amp < 1000 -> quietCount++
+                    amp < 5000 -> lowCount++
+                    amp < 15000 -> midCount++
+                    else -> highCount++
+                }
+            }
+
+            val total = amps.size.coerceAtLeast(1)
+            val qPct = quietCount * 100 / total
+            val lPct = lowCount * 100 / total
+            val mPct = midCount * 100 / total
+            val hPct = highCount * 100 / total
+
+            val analysisText = """
+                ・静寂 (安眠): $qPct% ($quietCount 秒)
+                ・小 (寝返り/小音): $lPct% ($lowCount 秒)
+                ・中 (中いびき): $mPct% ($midCount 秒)
+                ・大 (大いびき): $hPct% ($highCount 秒)
+            """.trimIndent()
+
+            handler.post {
+                waveformDaily.setWaveData(amps)
+                tvAnalysis.text = analysisText
+            }
+        }
+    }
+
     private fun setupListeners() {
         spinnerFiles.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(
@@ -189,6 +239,8 @@ class DailyFragment : Fragment() {
                     selectedFile = fileList[position]
                     val sizeMb = String.format(Locale.getDefault(), "%.2f", selectedFile!!.length().toDouble() / (1024 * 1024))
                     tvFileInfo.text = "選択: ${selectedFile!!.name} ($sizeMb MB)"
+
+                    loadGraphAndAnalysis(selectedFile!!.name)
                 }
             }
 
@@ -212,6 +264,11 @@ class DailyFragment : Fragment() {
                 if (fromUser) {
                     mediaPlayer?.seekTo(progress)
                     tvCurrentTime.text = formatMs(progress)
+                    mediaPlayer?.let { player ->
+                        if (player.duration > 0) {
+                            waveformDaily.setPlaybackProgress(progress.toFloat() / player.duration.toFloat())
+                        }
+                    }
                 }
             }
 
@@ -261,6 +318,7 @@ class DailyFragment : Fragment() {
         btnStopPlay.isEnabled = false
         seekBar.progress = 0
         tvCurrentTime.text = "00:00:00"
+        waveformDaily.setPlaybackProgress(-1f)
     }
 
     private fun formatMs(ms: Int): String {
@@ -274,5 +332,6 @@ class DailyFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         stopAudio()
+        dbExecutor.shutdown()
     }
 }
