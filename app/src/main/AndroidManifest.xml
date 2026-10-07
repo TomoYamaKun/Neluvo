@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--//app/src/main/AndroidManifest.xml-->
-<!--ver 1.00-13-->
+<!--ver 1.00-16-->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -14,7 +14,7 @@
         android:icon="@android:drawable/sym_def_app_icon"
         android:label="Neluvo"
         android:supportsRtl="true"
-        android:theme="@style/Theme.AppCompat.Light.DarkActionBar">
+        android:theme="@style/Theme.MaterialComponents.Light.DarkActionBar">
 
         <activity
             android:name="co.neluvo.papa.MainActivity"

@@ -1,5 +1,5 @@
 //app/src/main/java/co/neluvo/papa/CrashHandler.kt
-//ver 1.00-12
+//ver 1.00-16
 package co.neluvo.papa
 
 import android.content.Context
@@ -32,7 +32,8 @@ class CrashHandler(private val context: Context) : Thread.UncaughtExceptionHandl
                 $stackTrace
             """.trimIndent()
 
-            val logFile = File(context.getExternalFilesDir(null), CRASH_LOG_FILE_NAME)
+            val dir = context.getExternalFilesDir(null) ?: context.filesDir
+            val logFile = File(dir, CRASH_LOG_FILE_NAME)
             logFile.writeText(logContent)
         } catch (e: Exception) {
             e.printStackTrace()
@@ -54,7 +55,8 @@ class CrashHandler(private val context: Context) : Thread.UncaughtExceptionHandl
 
         fun getSavedCrashLog(context: Context): String? {
             return try {
-                val logFile = File(context.getExternalFilesDir(null), CRASH_LOG_FILE_NAME)
+                val dir = context.getExternalFilesDir(null) ?: context.filesDir
+                val logFile = File(dir, CRASH_LOG_FILE_NAME)
                 if (logFile.exists() && logFile.length() > 0) {
                     logFile.readText()
                 } else null
@@ -65,10 +67,9 @@ class CrashHandler(private val context: Context) : Thread.UncaughtExceptionHandl
 
         fun clearCrashLog(context: Context) {
             try {
-                val logFile = File(context.getExternalFilesDir(null), CRASH_LOG_FILE_NAME)
-                if (logFile.exists()) {
-                    logFile.delete()
-                }
+                val dir1 = context.getExternalFilesDir(null)
+                if (dir1 != null) File(dir1, CRASH_LOG_FILE_NAME).delete()
+                File(context.filesDir, CRASH_LOG_FILE_NAME).delete()
             } catch (e: Exception) {
                 e.printStackTrace()
             }

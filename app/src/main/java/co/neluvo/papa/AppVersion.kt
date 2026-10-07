@@ -1,10 +1,10 @@
 //app/src/main/java/co/neluvo/papa/AppVersion.kt
-//ver 1.00-12
+//ver 1.00-16
 package co.neluvo.papa
 
 object AppVersion {
-    const val VERSION_NAME = "1.00-12"
-    const val VERSION_CODE = 12
+    const val VERSION_NAME = "1.00-16"
+    const val VERSION_CODE = 16
     const val APP_NAME = "Neluvo Papa"
 
     fun getFullVersionInfo(): String {
