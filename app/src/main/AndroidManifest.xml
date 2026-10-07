@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--//app/src/main/AndroidManifest.xml-->
-<!--ver 1.00-16-->
+<!--ver 1.00-21-->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -11,19 +11,45 @@
     <application
         android:name="co.neluvo.papa.MainApplication"
         android:allowBackup="true"
-        android:icon="@android:drawable/sym_def_app_icon"
+        android:icon="@drawable/ic_launcher_moon"
         android:label="Neluvo"
+        android:roundIcon="@drawable/ic_launcher_moon"
         android:supportsRtl="true"
         android:theme="@style/Theme.MaterialComponents.Light.DarkActionBar">
 
+        <!-- 本体 MainActivity -->
         <activity
             android:name="co.neluvo.papa.MainActivity"
             android:exported="true">
+        </activity>
+
+        <!-- 1つ目のアイコンエイリアス (月デザイン) -->
+        <activity-alias
+            android:name="co.neluvo.papa.MainActivityMoon"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@drawable/ic_launcher_moon"
+            android:label="Neluvo"
+            android:targetActivity="co.neluvo.papa.MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+
+        <!-- 2つ目のアイコンエイリアス (波デザイン) -->
+        <activity-alias
+            android:name="co.neluvo.papa.MainActivityWave"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@drawable/ic_launcher_wave"
+            android:label="Neluvo"
+            android:targetActivity="co.neluvo.papa.MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
 
         <service
             android:name="co.neluvo.papa.RecordingService"

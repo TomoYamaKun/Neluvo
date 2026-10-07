@@ -1,11 +1,10 @@
 //app/src/main/java/co/neluvo/papa/HomeFragment.kt
-//ver 1.00-19
+//ver 1.00-20
 package co.neluvo.papa
 
 import android.Manifest
 import android.content.BroadcastReceiver
-import android.content.ClipData
-import android.content.ClipboardManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -85,7 +84,6 @@ class HomeFragment : Fragment() {
         super.onResume()
         val filter = IntentFilter(RecordingService.ACTION_AMPLITUDE_UPDATE)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            // Context.RECEIVER_NOT_EXPORTED (4) を直接指定してコンパイルエラーを回避
             requireContext().registerReceiver(amplitudeReceiver, filter, 4)
         } else {
             @Suppress("UnspecifiedRegisterReceiverFlag")
@@ -126,21 +124,73 @@ class HomeFragment : Fragment() {
         val msg = "${AppVersion.getFullVersionInfo()}\n\n【直近の動作ログ】\n$crashLog"
 
         AlertDialog.Builder(requireContext())
-            .setTitle("アプリ情報 / Help")
+            .setTitle("アプリ情報 / 設定")
             .setMessage(msg)
-            .setPositiveButton("📋 コピー") { _, _ ->
-                copyToClipboard(msg)
+            .setPositiveButton("🎨 アイコン変更") { _, _ ->
+                showIconSelectDialog()
             }
-            .setNeutralButton("ログ消去") { _, _ ->
-                CrashHandler.clearCrashLog(requireContext())
+            .setNeutralButton("📋 ログコピー") { _, _ ->
+                copyToClipboard(msg)
             }
             .setNegativeButton("閉じる", null)
             .show()
     }
 
+    private fun showIconSelectDialog() {
+        val items = arrayOf("🌙 月デザイン (デフォルト)", "🌊 波デザイン")
+        AlertDialog.Builder(requireContext())
+            .setTitle("アプリアイコンの選択")
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> changeAppIcon(useMoonIcon = true)
+                    1 -> changeAppIcon(useMoonIcon = false)
+                }
+            }
+            .setNegativeButton("キャンセル", null)
+            .show()
+    }
+
+    private fun changeAppIcon(useMoonIcon: Boolean) {
+        val context = requireContext()
+        val pm = context.packageManager
+        val moonAlias = ComponentName(context, "co.neluvo.papa.MainActivityMoon")
+        val waveAlias = ComponentName(context, "co.neluvo.papa.MainActivityWave")
+
+        try {
+            if (useMoonIcon) {
+                pm.setComponentEnabledSetting(
+                    moonAlias,
+                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                    PackageManager.DONT_KILL_APP
+                )
+                pm.setComponentEnabledSetting(
+                    waveAlias,
+                    PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                    PackageManager.DONT_KILL_APP
+                )
+                Toast.makeText(context, "アイコンを「月デザイン」に変更しました！", Toast.LENGTH_SHORT).show()
+            } else {
+                pm.setComponentEnabledSetting(
+                    waveAlias,
+                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                    PackageManager.DONT_KILL_APP
+                )
+                pm.setComponentEnabledSetting(
+                    moonAlias,
+                    PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                    PackageManager.DONT_KILL_APP
+                )
+                Toast.makeText(context, "アイコンを「波デザイン」に変更しました！", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(context, "アイコンの変更に失敗しました: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun copyToClipboard(text: String) {
-        val clipboard = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val clip = ClipData.newPlainText("App Log", text)
+        val clipboard = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        val clip = android.content.ClipData.newPlainText("App Log", text)
         clipboard.setPrimaryClip(clip)
         Toast.makeText(requireContext(), "ログをクリップボードにコピーしました", Toast.LENGTH_SHORT).show()
     }
