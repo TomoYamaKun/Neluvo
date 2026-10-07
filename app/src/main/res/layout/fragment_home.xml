@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--//app/src/main/res/layout/fragment_home.xml-->
-<!--ver 1.00-05-->
+<!--ver 1.00-06-->
 <LinearLayout android:gravity="center" android:layout_height="match_parent" android:layout_width="match_parent" android:orientation="vertical" android:padding="16dp" xmlns:android="http://schemas.android.com/apk/res/android">
 
     <TextView android:id="@+id/tvStatus" android:layout_height="wrap_content" android:layout_marginBottom="32dp" android:layout_width="wrap_content" android:text="停止中" android:textSize="24sp" android:textStyle="bold"/>

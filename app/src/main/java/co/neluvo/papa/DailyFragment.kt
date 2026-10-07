@@ -1,7 +1,9 @@
 //app/src/main/java/co/neluvo/papa/DailyFragment.kt
-//ver 1.00-05
+//ver 1.00-06
 package co.neluvo.papa
 
+import android.content.Context
+import android.media.AudioManager
 import android.media.MediaPlayer
 import android.os.Bundle
 import android.os.Handler
@@ -29,11 +31,18 @@ class DailyFragment : Fragment() {
     private lateinit var btnPlay: Button
     private lateinit var btnStopPlay: Button
 
+    private lateinit var seekBarVolume: SeekBar
+    private lateinit var btnMute: Button
+
     private var fileList: List<File> = emptyList()
     private var selectedFile: File? = null
 
     private var mediaPlayer: MediaPlayer? = null
     private var isPlaying = false
+
+    private lateinit var audioManager: AudioManager
+    private var isMuted = false
+    private var previousVolume = 0
 
     private val handler = Handler(Looper.getMainLooper())
     private val updateProgressRunnable = object : Runnable {
@@ -56,6 +65,8 @@ class DailyFragment : Fragment() {
     ): View? {
         val view = inflater.inflate(R.layout.fragment_daily, container, false)
 
+        audioManager = requireContext().getSystemService(Context.AUDIO_SERVICE) as AudioManager
+
         spinnerFiles = view.findViewById(R.id.spinnerFiles)
         tvFileInfo = view.findViewById(R.id.tvFileInfo)
         seekBar = view.findViewById(R.id.seekBar)
@@ -64,10 +75,52 @@ class DailyFragment : Fragment() {
         btnPlay = view.findViewById(R.id.btnPlay)
         btnStopPlay = view.findViewById(R.id.btnStopPlay)
 
+        seekBarVolume = view.findViewById(R.id.seekBarVolume)
+        btnMute = view.findViewById(R.id.btnMute)
+
+        setupVolumeControl()
         setupListeners()
         loadAudioFiles()
 
         return view
+    }
+
+    private fun setupVolumeControl() {
+        val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        val curVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+
+        seekBarVolume.max = maxVol
+        seekBarVolume.progress = curVol
+
+        seekBarVolume.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, progress, 0)
+                    if (progress > 0 && isMuted) {
+                        isMuted = false
+                        btnMute.text = "消音"
+                    }
+                }
+            }
+
+            override fun onStartTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {}
+        })
+
+        btnMute.setOnClickListener {
+            if (isMuted) {
+                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, previousVolume, 0)
+                seekBarVolume.progress = previousVolume
+                isMuted = false
+                btnMute.text = "消音"
+            } else {
+                previousVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, 0, 0)
+                seekBarVolume.progress = 0
+                isMuted = true
+                btnMute.text = "解除"
+            }
+        }
     }
 
     override fun setUserVisibleHint(isVisibleToUser: Boolean) {
@@ -81,6 +134,10 @@ class DailyFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         loadAudioFiles()
+        if (::seekBarVolume.isInitialized) {
+            val curVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+            seekBarVolume.progress = curVol
+        }
     }
 
     private fun loadAudioFiles() {

@@ -1,5 +1,5 @@
 //app/src/main/java/co/neluvo/papa/RecordingService.kt
-//ver 1.00-05
+//ver 1.00-06
 package co.neluvo.papa
 
 import android.app.Notification
@@ -9,7 +9,10 @@ import android.app.Service
 import android.content.Intent
 import android.media.MediaRecorder
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import java.io.File
 import java.text.SimpleDateFormat
@@ -21,6 +24,21 @@ class RecordingService : Service() {
     private var mediaRecorder: MediaRecorder? = null
     private var isRecording = false
     private var currentOutputFile: String? = null
+
+    private val handler = Handler(Looper.getMainLooper())
+    private val amplitudeChecker = object : Runnable {
+        override fun run() {
+            if (isRecording && mediaRecorder != null) {
+                try {
+                    val maxAmplitude = mediaRecorder?.maxAmplitude ?: 0
+                    Log.d("RecordingService", "Current Amplitude: $maxAmplitude")
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+                handler.postDelayed(this, 1000) // 1秒間隔で音量検知
+            }
+        }
+    }
 
     override fun onBind(intent: Intent?): IBinder? {
         return null
@@ -64,6 +82,7 @@ class RecordingService : Service() {
                 prepare()
                 start()
                 isRecording = true
+                handler.post(amplitudeChecker)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -72,6 +91,8 @@ class RecordingService : Service() {
 
     private fun stopRecording() {
         if (!isRecording) return
+
+        handler.removeCallbacks(amplitudeChecker)
 
         try {
             mediaRecorder?.apply {
