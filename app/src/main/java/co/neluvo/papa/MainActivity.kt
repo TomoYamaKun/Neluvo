@@ -1,13 +1,17 @@
 //app/src/main/java/co/neluvo/papa/MainActivity.kt
-//ver 1.00-16
+//ver 1.00-17
 package co.neluvo.papa
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.graphics.Color
 import android.os.Bundle
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.viewpager2.adapter.FragmentStateAdapter
@@ -76,6 +80,8 @@ class MainActivity : AppCompatActivity() {
      * XMLレイアウトやテーマに一切依存せず、画面に全画面エラーを表示する緊急UI
      */
     private fun showRawErrorScreen(title: String, detailMessage: String) {
+        val fullLogText = "${AppVersion.getFullVersionInfo()}\n\n$detailMessage"
+
         val scrollView = ScrollView(this)
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -89,25 +95,50 @@ class MainActivity : AppCompatActivity() {
             setPadding(0, 0, 0, 16)
         }
 
+        val btnLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 0, 0, 16)
+        }
+
+        val btnCopy = Button(this).apply {
+            text = "📋 ログをコピー"
+            setOnClickListener {
+                copyToClipboard(fullLogText)
+            }
+        }
+
         val btnClear = Button(this).apply {
-            text = "ログを消去して通常起動を試す"
+            text = "ログ消去して再起動"
             setOnClickListener {
                 CrashHandler.clearCrashLog(this@MainActivity)
                 recreate()
             }
         }
 
+        btnLayout.addView(btnCopy)
+        btnLayout.addView(btnClear)
+
         val tvMsg = TextView(this).apply {
-            text = "${AppVersion.getFullVersionInfo()}\n\n$detailMessage"
+            text = "$fullLogText\n\n(※ここをタップしてコピー)"
             textSize = 12f
             setTextColor(Color.DKGRAY)
-            setPadding(0, 24, 0, 0)
+            setPadding(0, 16, 0, 0)
+            setOnClickListener {
+                copyToClipboard(fullLogText)
+            }
         }
 
         layout.addView(tvTitle)
-        layout.addView(btnClear)
+        layout.addView(btnLayout)
         layout.addView(tvMsg)
         scrollView.addView(layout)
         setContentView(scrollView)
+    }
+
+    private fun copyToClipboard(text: String) {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText("Crash Log", text)
+        clipboard.setPrimaryClip(clip)
+        Toast.makeText(this, "ログをクリップボードにコピーしました", Toast.LENGTH_SHORT).show()
     }
 }

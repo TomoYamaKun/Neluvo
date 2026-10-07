@@ -1,9 +1,11 @@
 //app/src/main/java/co/neluvo/papa/HomeFragment.kt
-//ver 1.00-12
+//ver 1.00-19
 package co.neluvo.papa
 
 import android.Manifest
 import android.content.BroadcastReceiver
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -15,6 +17,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
@@ -82,7 +85,8 @@ class HomeFragment : Fragment() {
         super.onResume()
         val filter = IntentFilter(RecordingService.ACTION_AMPLITUDE_UPDATE)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            requireContext().registerReceiver(amplitudeReceiver, filter, 0)
+            // Context.RECEIVER_NOT_EXPORTED (4) を直接指定してコンパイルエラーを回避
+            requireContext().registerReceiver(amplitudeReceiver, filter, 4)
         } else {
             @Suppress("UnspecifiedRegisterReceiverFlag")
             requireContext().registerReceiver(amplitudeReceiver, filter)
@@ -101,10 +105,14 @@ class HomeFragment : Fragment() {
     private fun checkAndShowCrashLog() {
         val crashLog = CrashHandler.getSavedCrashLog(requireContext())
         if (!crashLog.isNullOrEmpty()) {
+            val fullText = "${AppVersion.getFullVersionInfo()}\n\n$crashLog"
             AlertDialog.Builder(requireContext())
                 .setTitle("⚠️ 前回のクラッシュログ")
-                .setMessage(crashLog)
-                .setPositiveButton("ログ消去") { dialog, _ ->
+                .setMessage("$fullText\n\n(※コピーボタンまたはタップでコピー)")
+                .setPositiveButton("📋 コピー") { _, _ ->
+                    copyToClipboard(fullText)
+                }
+                .setNeutralButton("ログ消去") { dialog, _ ->
                     CrashHandler.clearCrashLog(requireContext())
                     dialog.dismiss()
                 }
@@ -120,11 +128,21 @@ class HomeFragment : Fragment() {
         AlertDialog.Builder(requireContext())
             .setTitle("アプリ情報 / Help")
             .setMessage(msg)
-            .setPositiveButton("OK", null)
+            .setPositiveButton("📋 コピー") { _, _ ->
+                copyToClipboard(msg)
+            }
             .setNeutralButton("ログ消去") { _, _ ->
                 CrashHandler.clearCrashLog(requireContext())
             }
+            .setNegativeButton("閉じる", null)
             .show()
+    }
+
+    private fun copyToClipboard(text: String) {
+        val clipboard = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText("App Log", text)
+        clipboard.setPrimaryClip(clip)
+        Toast.makeText(requireContext(), "ログをクリップボードにコピーしました", Toast.LENGTH_SHORT).show()
     }
 
     private fun startRecordingService() {
