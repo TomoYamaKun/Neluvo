@@ -1,5 +1,5 @@
 //app/src/main/java/co/neluvo/papa/WaveformView.kt
-//ver 1.00-23
+//ver 1.00-26
 package co.neluvo.papa
 
 import android.content.Context
@@ -69,7 +69,8 @@ class WaveformView @JvmOverloads constructor(
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        maxBars = max(20, w / 9)
+        // 画面幅に応じて最大バー数を自動調整 (リアルタイム描画用)
+        maxBars = max(20, w / 12)
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -81,14 +82,15 @@ class WaveformView @JvmOverloads constructor(
         if (amplitudes.isEmpty()) return
 
         val count = amplitudes.size
-        val gap = 3f
-        val barWidth = max(2f, (width.toFloat() - (gap * (count + 1))) / count)
+        // データ数が多い(全体ファイル表示)場合は隙間を狭くする
+        val gap = if (count > 50) 1f else 3f
+        val barWidth = max(1.5f, (width.toFloat() - (gap * (count + 1))) / count)
         val maxAmp = 25000f
 
         for (i in 0 until count) {
             val amp = amplitudes[i].toFloat()
-            val normalized = min(1.0f, max(0.05f, amp / maxAmp))
-            val barHeight = max(4f, (height * 0.8f) * normalized)
+            val normalized = min(1.0f, max(0.02f, amp / maxAmp))
+            val barHeight = max(4f, (height * 0.9f) * normalized)
 
             val left = gap + i * (barWidth + gap)
             val top = centerY - (barHeight / 2f)

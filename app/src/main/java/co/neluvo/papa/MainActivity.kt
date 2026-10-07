@@ -1,10 +1,7 @@
 //app/src/main/java/co/neluvo/papa/MainActivity.kt
-//ver 1.00-17
+//ver 1.00-27
 package co.neluvo.papa
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
 import android.graphics.Color
 import android.os.Bundle
 import android.widget.Button
@@ -12,6 +9,9 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.viewpager2.adapter.FragmentStateAdapter
@@ -35,14 +35,12 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 1. 直前のクラッシュログが存在する場合は、コードのみで全画面表示
         val crashLog = CrashHandler.getSavedCrashLog(this)
         if (!crashLog.isNullOrEmpty()) {
             showRawErrorScreen("⚠️ 前回の未捕捉クラッシュログ", crashLog)
             return
         }
 
-        // 2. メイン画面の生成
         try {
             setContentView(R.layout.activity_main)
 
@@ -56,6 +54,7 @@ class MainActivity : AppCompatActivity() {
                     return try {
                         when (position) {
                             0 -> HomeFragment()
+                            1 -> LogFragment() // 新設: ログ画面
                             2 -> DailyFragment()
                             else -> SimpleFragment.newInstance("${tabTitles[position]}\n(${AppVersion.getFullVersionInfo()})")
                         }
@@ -76,9 +75,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * XMLレイアウトやテーマに一切依存せず、画面に全画面エラーを表示する緊急UI
-     */
     private fun showRawErrorScreen(title: String, detailMessage: String) {
         val fullLogText = "${AppVersion.getFullVersionInfo()}\n\n$detailMessage"
 

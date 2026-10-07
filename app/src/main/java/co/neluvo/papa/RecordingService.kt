@@ -1,5 +1,5 @@
 //app/src/main/java/co/neluvo/papa/RecordingService.kt
-//ver 1.00-24
+//ver 1.00-28
 package co.neluvo.papa
 
 import android.app.Notification
@@ -7,7 +7,9 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
+import android.content.IntentFilter
 import android.media.MediaRecorder
+import android.os.BatteryManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -32,9 +34,21 @@ class RecordingService : Service() {
             if (isRecording && mediaRecorder != null) {
                 try {
                     val amp = mediaRecorder?.maxAmplitude ?: 0
+                    
+                    // バッテリー情報の取得
+                    val batteryStatus = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+                    val level = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+                    val scale = batteryStatus?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+                    val batteryPct = if (level != -1 && scale != -1) (level * 100 / scale) else -1
+                    val status = batteryStatus?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+                    val isCharging = if (status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL) 1 else 0
+
+                    // DBに音量とバッテリー情報を保存
                     if (currentFileName.isNotEmpty()) {
-                        dbHelper.insertAmplitude(currentFileName, amp)
+                        dbHelper.insertAmplitude(currentFileName, amp, batteryPct, isCharging)
                     }
+
+                    // 波形描画用のブロードキャスト
                     val intent = Intent(ACTION_AMPLITUDE_UPDATE).apply {
                         putExtra(EXTRA_AMPLITUDE, amp)
                         setPackage(packageName)

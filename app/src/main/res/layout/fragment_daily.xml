@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--//app/src/main/res/layout/fragment_daily.xml-->
-<!--ver 1.00-22-->
+<!--ver 1.00-29-->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -31,6 +31,7 @@
             android:textColor="#666666"
             android:textSize="12sp" />
 
+        <!-- 録音波形グラフ -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -122,11 +123,26 @@
                 android:text="消音" />
         </LinearLayout>
 
+        <!-- バッテリー推移グラフ -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="バッテリー・充電推移グラフ"
+            android:textStyle="bold" />
+
+        <co.neluvo.papa.BatteryGraphView
+            android:id="@+id/batteryGraphView"
+            android:layout_width="match_parent"
+            android:layout_height="100dp"
+            android:layout_marginTop="4dp"
+            android:background="#FAFAFA" />
+
         <!-- 円グラフ ＆ 分析 -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="24dp"
             android:text="音量レベル分析 (4段階)"
             android:textStyle="bold" />
 
@@ -135,7 +151,8 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:paddingBottom="24dp">
 
             <co.neluvo.papa.PieChartView
                 android:id="@+id/pieChartView"

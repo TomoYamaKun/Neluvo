@@ -1,5 +1,5 @@
 //app/src/main/java/co/neluvo/papa/DailyFragment.kt
-//ver 1.00-22
+//ver 1.00-29
 package co.neluvo.papa
 
 import android.content.Context
@@ -27,6 +27,7 @@ class DailyFragment : Fragment() {
     private lateinit var spinnerFiles: Spinner
     private lateinit var tvFileInfo: TextView
     private lateinit var waveformDaily: WaveformView
+    private lateinit var batteryGraphView: BatteryGraphView
     private lateinit var pieChartView: PieChartView
     private lateinit var seekBar: SeekBar
     private lateinit var tvCurrentTime: TextView
@@ -85,6 +86,7 @@ class DailyFragment : Fragment() {
         spinnerFiles = view.findViewById(R.id.spinnerFiles)
         tvFileInfo = view.findViewById(R.id.tvFileInfo)
         waveformDaily = view.findViewById(R.id.waveformDaily)
+        batteryGraphView = view.findViewById(R.id.batteryGraphView)
         pieChartView = view.findViewById(R.id.pieChartView)
         seekBar = view.findViewById(R.id.seekBar)
         tvCurrentTime = view.findViewById(R.id.tvCurrentTime)
@@ -120,7 +122,6 @@ class DailyFragment : Fragment() {
                     }
                 }
             }
-
             override fun onStartTrackingTouch(sb: SeekBar?) {}
             override fun onStopTrackingTouch(sb: SeekBar?) {}
         })
@@ -161,6 +162,7 @@ class DailyFragment : Fragment() {
             btnPlay.isEnabled = false
             btnStopPlay.isEnabled = false
             waveformDaily.clear()
+            batteryGraphView.clear()
             tvAnalysis.text = "データなし"
             pieChartView.setData(0, 0, 0, 0)
             val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, listOf("（録音なし）"))
@@ -184,48 +186,71 @@ class DailyFragment : Fragment() {
     private fun loadGraphAndAnalysis(fileName: String) {
         dbExecutor.execute {
             val records = dbHelper.getAmplitudesForFile(fileName)
-            val rawAmps = records.map { it.amplitude }
-
-            // メモリ保護: 最大100件に間引いてグラフ表示
-            val maxPoints = 100
-            val sampledAmps = if (rawAmps.size > maxPoints) {
-                val step = rawAmps.size.toFloat() / maxPoints
-                (0 until maxPoints).map { i ->
-                    rawAmps[(i * step).toInt().coerceAtMost(rawAmps.size - 1)]
+            
+            if (records.isEmpty()) {
+                handler.post {
+                    waveformDaily.clear()
+                    batteryGraphView.clear()
+                    pieChartView.setData(0, 0, 0, 0)
+                    tvAnalysis.text = "※このファイルの履歴データはありません"
                 }
-            } else {
-                rawAmps
+                return@execute
             }
 
+            // メモリ保護: 最大100件に間引く（波形とバッテリー推移の両方に使用）
+            val maxPoints = 100
+            val sampledRecords = if (records.size > maxPoints) {
+                val step = records.size.toFloat() / maxPoints
+                (0 until maxPoints).map { i ->
+                    records[(i * step).toInt().coerceAtMost(records.size - 1)]
+                }
+            } else {
+                records
+            }
+
+            val sampledAmps = sampledRecords.map { it.amplitude }
+            val sampledBattery = sampledRecords.map { BatteryGraphView.DataPoint(it.batteryLevel, it.isCharging == 1) }
+
+            // 分析計算は間引き前の全データ(records)で行う
             var quietCount = 0
             var lowCount = 0
             var midCount = 0
             var highCount = 0
 
-            for (amp in rawAmps) {
+            for (r in records) {
                 when {
-                    amp < 1000 -> quietCount++
-                    amp < 5000 -> lowCount++
-                    amp < 15000 -> midCount++
+                    r.amplitude < 1000 -> quietCount++
+                    r.amplitude < 5000 -> lowCount++
+                    r.amplitude < 15000 -> midCount++
                     else -> highCount++
                 }
             }
 
-            val total = rawAmps.size.coerceAtLeast(1)
+            val total = records.size.coerceAtLeast(1)
             val qPct = quietCount * 100 / total
             val lPct = lowCount * 100 / total
             val mPct = midCount * 100 / total
             val hPct = highCount * 100 / total
 
+            val firstRecord = records.first()
+            val lastRecord = records.last()
+            var batteryInfo = ""
+            if (firstRecord.batteryLevel >= 0) {
+                val startCharge = if (firstRecord.isCharging == 1) "⚡充電中" else "🔋"
+                val endCharge = if (lastRecord.isCharging == 1) "⚡充電中" else "🔋"
+                batteryInfo = "\n\n【バッテリー消費】\n開始: ${firstRecord.batteryLevel}% ($startCharge) ➔ 終了: ${lastRecord.batteryLevel}% ($endCharge)"
+            }
+
             val analysisText = """
                 ・静寂 (安眠): $qPct% ($quietCount 秒)
-                ・小 (寝返り): $lPct% ($lowCount 秒)
+                ・小 (寝返り/小音): $lPct% ($lowCount 秒)
                 ・中 (中いびき): $mPct% ($midCount 秒)
-                ・大 (大いびき): $hPct% ($highCount 秒)
+                ・大 (大いびき): $hPct% ($highCount 秒)$batteryInfo
             """.trimIndent()
 
             handler.post {
                 waveformDaily.setWaveData(sampledAmps)
+                batteryGraphView.setData(sampledBattery)
                 pieChartView.setData(quietCount, lowCount, midCount, highCount)
                 tvAnalysis.text = analysisText
             }
@@ -240,11 +265,9 @@ class DailyFragment : Fragment() {
                     selectedFile = fileList[position]
                     val sizeMb = String.format(Locale.getDefault(), "%.2f", selectedFile!!.length().toDouble() / (1024 * 1024))
                     tvFileInfo.text = "選択: ${selectedFile!!.name} ($sizeMb MB)"
-
                     loadGraphAndAnalysis(selectedFile!!.name)
                 }
             }
-
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
 
@@ -252,9 +275,7 @@ class DailyFragment : Fragment() {
             if (isPlaying) pauseAudio() else playAudio()
         }
 
-        btnStopPlay.setOnClickListener {
-            stopAudio()
-        }
+        btnStopPlay.setOnClickListener { stopAudio() }
 
         seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
@@ -268,7 +289,6 @@ class DailyFragment : Fragment() {
                     }
                 }
             }
-
             override fun onStartTrackingTouch(sb: SeekBar?) {}
             override fun onStopTrackingTouch(sb: SeekBar?) {}
         })
