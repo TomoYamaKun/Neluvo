@@ -1,5 +1,5 @@
 //app/src/main/java/co/neluvo/papa/MainActivity.kt
-//ver 1.00-04
+//ver 1.00-05
 package co.neluvo.papa
 
 import android.os.Bundle
@@ -34,6 +34,7 @@ class MainActivity : AppCompatActivity() {
             override fun createFragment(position: Int): Fragment {
                 return when (position) {
                     0 -> HomeFragment()
+                    2 -> DailyFragment()
                     else -> SimpleFragment.newInstance(tabTitles[position])
                 }
             }

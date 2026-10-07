@@ -1,5 +1,5 @@
 //app/src/main/java/co/neluvo/papa/SimpleFragment.kt
-//ver 1.00-04
+//ver 1.00-05
 package co.neluvo.papa
 
 import android.os.Bundle
