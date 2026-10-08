@@ -1,6 +1,6 @@
 //==================================================
 // FILE: /app/src/main/java/co/neluvo/papa/MainActivity.kt
-// VER : 1.01-12
+// VER : 1.01-15
 //==================================================
 package co.neluvo.papa
 
@@ -34,6 +34,10 @@ class MainActivity : AppCompatActivity() {
         "バックアップ"
     )
 
+    // ジャンプ先ファイル名を保持する変数
+    var targetDailyFilename: String? = null
+    private var viewPager: ViewPager2? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -47,9 +51,9 @@ class MainActivity : AppCompatActivity() {
             setContentView(R.layout.activity_main)
 
             val tabLayout = findViewById<TabLayout>(R.id.tabLayout)
-            val viewPager = findViewById<ViewPager2>(R.id.viewPager)
+            viewPager = findViewById(R.id.viewPager)
 
-            viewPager.adapter = object : FragmentStateAdapter(this) {
+            viewPager?.adapter = object : FragmentStateAdapter(this) {
                 override fun getItemCount(): Int = tabTitles.size
 
                 override fun createFragment(position: Int): Fragment {
@@ -58,7 +62,6 @@ class MainActivity : AppCompatActivity() {
                             0 -> HomeFragment()
                             1 -> LogFragment()
                             2 -> DailyFragment()
-                            // 【追加】週間・月間フラグメントを紐付け
                             3 -> WeeklyFragment()
                             4 -> MonthlyFragment()
                             else -> SimpleFragment.newInstance("${tabTitles[position]}\n(${AppVersion.getFullVersionInfo()})")
@@ -69,7 +72,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            TabLayoutMediator(tabLayout, viewPager) { tab, position ->
+            TabLayoutMediator(tabLayout, viewPager!!) { tab, position ->
                 tab.text = tabTitles[position]
             }.attach()
 
@@ -80,34 +83,33 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // グラフタップ時に呼ばれ、日次タブ(index=2)へ強制移動するメソッド
+    fun jumpToDailyTab(filename: String) {
+        targetDailyFilename = filename
+        viewPager?.currentItem = 2
+    }
+
     private fun showRawErrorScreen(title: String, detailMessage: String) {
         val fullLogText = "${AppVersion.getFullVersionInfo()}\n\n$detailMessage"
-
         val scrollView = ScrollView(this)
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(32, 32, 32, 32)
         }
-
         val tvTitle = TextView(this).apply {
             text = title
             textSize = 20f
             setTextColor(Color.RED)
             setPadding(0, 0, 0, 16)
         }
-
         val btnLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, 0, 0, 16)
         }
-
         val btnCopy = Button(this).apply {
             text = "📋 ログをコピー"
-            setOnClickListener {
-                copyToClipboard(fullLogText)
-            }
+            setOnClickListener { copyToClipboard(fullLogText) }
         }
-
         val btnClear = Button(this).apply {
             text = "ログ消去して再起動"
             setOnClickListener {
@@ -115,20 +117,15 @@ class MainActivity : AppCompatActivity() {
                 recreate()
             }
         }
-
         btnLayout.addView(btnCopy)
         btnLayout.addView(btnClear)
-
         val tvMsg = TextView(this).apply {
             text = "$fullLogText\n\n(※ここをタップしてコピー)"
             textSize = 12f
             setTextColor(Color.DKGRAY)
             setPadding(0, 16, 0, 0)
-            setOnClickListener {
-                copyToClipboard(fullLogText)
-            }
+            setOnClickListener { copyToClipboard(fullLogText) }
         }
-
         layout.addView(tvTitle)
         layout.addView(btnLayout)
         layout.addView(tvMsg)
@@ -140,6 +137,6 @@ class MainActivity : AppCompatActivity() {
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val clip = ClipData.newPlainText("Crash Log", text)
         clipboard.setPrimaryClip(clip)
-        Toast.makeText(this, "ログをクリップボードにコピーしました", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "ログをコピーしました", Toast.LENGTH_SHORT).show()
     }
 }

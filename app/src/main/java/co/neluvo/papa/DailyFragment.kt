@@ -1,6 +1,6 @@
 //==================================================
 // FILE: /app/src/main/java/co/neluvo/papa/DailyFragment.kt
-// VER : 1.01-10
+// VER : 1.01-15
 //==================================================
 package co.neluvo.papa
 
@@ -33,7 +33,6 @@ class DailyFragment : Fragment() {
     private var mediaPlayer: MediaPlayer? = null
     private var currentFilename: String? = null
     
-    // UI Elements
     private var spinnerFiles: Spinner? = null
     private var tvFileInfo: TextView? = null
     private var waveformDaily: WaveformView? = null
@@ -49,16 +48,16 @@ class DailyFragment : Fragment() {
     private var batteryGraphView: BatteryGraphView? = null
     private var pieChartView: PieChartView? = null
 
-    // 時間管理用
     private var startTimestampMs: Long = 0L
     private var endTimestampMs: Long = 0L
     private val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
     
     private val handler = Handler(Looper.getMainLooper())
     private var updateRunnable: Runnable? = null
-    
-    // 波形タップ時の更新範囲（ミリ秒）
     private var dynamicTimeWindowMs: Long = 30000L
+
+    // 内部保持用のファイル名リスト
+    private var loadedFileNames = listOf<String>()
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -118,18 +117,36 @@ class DailyFragment : Fragment() {
         }
     }
 
+    // 他タブから遷移してきた際、MainActivityにターゲットファイル名があれば自動選択する
+    override fun onResume() {
+        super.onResume()
+        try {
+            val mainActivity = activity as? MainActivity
+            mainActivity?.targetDailyFilename?.let { targetFile ->
+                val pos = loadedFileNames.indexOf(targetFile)
+                if (pos >= 0) {
+                    spinnerFiles?.setSelection(pos)
+                }
+                // 一度選択したらクリア
+                mainActivity.targetDailyFilename = null
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     private fun loadFileListIntoSpinner() {
         try {
             val dir = requireContext().getExternalFilesDir(null)
             val files = dir?.listFiles { _, name -> name.endsWith(".m4a") }
             if (files != null && files.isNotEmpty()) {
-                val fileNames = files.sortedByDescending { it.lastModified() }.map { it.name }
-                val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, fileNames)
+                loadedFileNames = files.sortedByDescending { it.lastModified() }.map { it.name }
+                val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, loadedFileNames)
                 spinnerFiles?.adapter = adapter
 
                 spinnerFiles?.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
                     override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                        val selectedFile = fileNames[position]
+                        val selectedFile = loadedFileNames[position]
                         setupAudioData(selectedFile)
                     }
                     override fun onNothingSelected(parent: AdapterView<*>?) {}
@@ -300,7 +317,6 @@ class DailyFragment : Fragment() {
             val options = arrayOf("静音", "安眠 (寝返り等)", "いびき", "ひどい (大いびき)")
             val levelValues = arrayOf(0, 1, 2, 3)
 
-            // 【修正】setMessageを削除し、タイトルのみにしました
             AlertDialog.Builder(requireContext())
                 .setTitle("判定の修正 (選択してください)")
                 .setItems(options) { _, which ->

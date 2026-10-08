@@ -1,6 +1,6 @@
 //==================================================
 // FILE: /app/src/main/java/co/neluvo/papa/TrendGraphView.kt
-// VER : 1.01-11
+// VER : 1.01-15
 //==================================================
 package co.neluvo.papa
 
@@ -9,6 +9,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.util.AttributeSet
+import android.view.MotionEvent
 import android.view.View
 
 class TrendGraphView @JvmOverloads constructor(
@@ -17,6 +18,7 @@ class TrendGraphView @JvmOverloads constructor(
 
     data class TrendData(
         val label: String, 
+        val filename: String?, // タップ遷移用
         val hasData: Boolean, 
         val quietPct: Float, 
         val normalPct: Float, 
@@ -25,6 +27,9 @@ class TrendGraphView @JvmOverloads constructor(
     )
 
     private val dataList = mutableListOf<TrendData>()
+    
+    // タップイベント用のコールバック
+    var onBarClickListener: ((TrendData) -> Unit)? = null
 
     private val paintQuiet = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#4CAF50") }
     private val paintNormal = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#03A9F4") }
@@ -89,7 +94,6 @@ class TrendGraphView @JvmOverloads constructor(
                     val hH = graphH * (data.heavyPct / 100f)
                     canvas.drawRect(left, currentBottom - hH, right, currentBottom, paintHeavy)
                 } else {
-                    // 未実行日はグレーの点線枠（ストローク）で「空き」を表現
                     canvas.drawRect(left, paddingTop, right, paddingTop + graphH, paintEmpty)
                 }
 
@@ -98,5 +102,25 @@ class TrendGraphView @JvmOverloads constructor(
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        try {
+            if (event.action == MotionEvent.ACTION_UP && dataList.isNotEmpty()) {
+                val w = width.toFloat()
+                val stepX = w / dataList.size
+                val tappedIndex = (event.x / stepX).toInt()
+
+                if (tappedIndex in dataList.indices) {
+                    val tappedData = dataList[tappedIndex]
+                    if (tappedData.hasData && tappedData.filename != null) {
+                        onBarClickListener?.invoke(tappedData)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return true
     }
 }

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--================================================-->
 <!-- FILE: /app/src/main/res/layout/fragment_monthly.xml -->
-<!-- VER : 1.01-13 -->
+<!-- VER : 1.01-16 -->
 <!--================================================-->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -25,7 +25,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="※グレーの枠はアプリ未実行の日です"
+            android:text="※グレーの枠は未実行。棒をタップで日次詳細へ"
             android:textColor="#999999"
             android:textSize="12sp" />
 
@@ -36,16 +36,30 @@
             android:layout_marginTop="16dp"
             android:background="#FAFAFA" />
 
-        <TextView
-            android:id="@+id/tvMonthlyAverage"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
             android:background="#FFF3E0"
-            android:padding="16dp"
-            android:text="集計中..."
-            android:textColor="#333333"
-            android:textSize="14sp" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="16dp">
+
+            <co.neluvo.papa.PieChartView
+                android:id="@+id/pieChartMonthly"
+                android:layout_width="100dp"
+                android:layout_height="100dp" />
+
+            <TextView
+                android:id="@+id/tvMonthlyAverage"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_weight="1"
+                android:text="集計中..."
+                android:textColor="#333333"
+                android:textSize="14sp" />
+        </LinearLayout>
 
     </LinearLayout>
 </ScrollView>

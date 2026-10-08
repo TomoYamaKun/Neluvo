@@ -1,6 +1,6 @@
 //==================================================
 // FILE: /app/src/main/java/co/neluvo/papa/MonthlyFragment.kt
-// VER : 1.01-14
+// VER : 1.01-16
 //==================================================
 package co.neluvo.papa
 
@@ -19,6 +19,7 @@ class MonthlyFragment : Fragment() {
     private lateinit var dbHelper: AmplitudeDbHelper
     private var trendGraphMonthly: TrendGraphView? = null
     private var tvMonthlyAverage: TextView? = null
+    private var pieChartMonthly: PieChartView? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -49,6 +50,16 @@ class MonthlyFragment : Fragment() {
             val tvId = resources.getIdentifier("tvMonthlyAverage", "id", pkg)
             if (tvId != 0) tvMonthlyAverage = view.findViewById(tvId)
 
+            val pieId = resources.getIdentifier("pieChartMonthly", "id", pkg)
+            if (pieId != 0) pieChartMonthly = view.findViewById(pieId)
+
+            // グラフタップ時のジャンプ処理
+            trendGraphMonthly?.onBarClickListener = { data ->
+                data.filename?.let { fname ->
+                    (activity as? MainActivity)?.jumpToDailyTab(fname)
+                }
+            }
+
             loadMonthlyData()
         } catch (e: Exception) {
             e.printStackTrace()
@@ -58,7 +69,6 @@ class MonthlyFragment : Fragment() {
     private fun loadMonthlyData() {
         try {
             val daysCount = 30
-            // 【変更】睡眠日基準（正午切り替え）
             val shiftMs = 12 * 60 * 60 * 1000L
             val baseTime = System.currentTimeMillis() - shiftMs
             
@@ -86,6 +96,12 @@ class MonthlyFragment : Fragment() {
             var sumSnore = 0f
             var sumHeavy = 0f
 
+            // 円グラフ用（総カウント）
+            var totalQ = 0
+            var totalN = 0
+            var totalS = 0
+            var totalH = 0
+
             for (i in 0 until daysCount) {
                 val targetCal = Calendar.getInstance()
                 targetCal.timeInMillis = baseTime
@@ -102,19 +118,26 @@ class MonthlyFragment : Fragment() {
                     val sPct = stat.snoreCount / total * 100f
                     val hPct = stat.heavyCount / total * 100f
 
-                    trendDataList.add(TrendGraphView.TrendData(dispStr, true, qPct, nPct, sPct, hPct))
+                    // 【修正】コンパイルエラーの原因解決
+                    trendDataList.add(TrendGraphView.TrendData(dispStr, stat.repFilename, true, qPct, nPct, sPct, hPct))
                     
                     executedDays++
                     sumQuiet += qPct
                     sumNormal += nPct
                     sumSnore += sPct
                     sumHeavy += hPct
+                    
+                    totalQ += stat.quietCount
+                    totalN += stat.normalCount
+                    totalS += stat.snoreCount
+                    totalH += stat.heavyCount
                 } else {
-                    trendDataList.add(TrendGraphView.TrendData(dispStr, false, 0f, 0f, 0f, 0f))
+                    trendDataList.add(TrendGraphView.TrendData(dispStr, null, false, 0f, 0f, 0f, 0f))
                 }
             }
 
             trendGraphMonthly?.setData(trendDataList)
+            pieChartMonthly?.setData(totalQ, totalN, totalS, totalH)
 
             if (executedDays > 0) {
                 val avgQ = (sumQuiet / executedDays).toInt()
@@ -122,7 +145,7 @@ class MonthlyFragment : Fragment() {
                 val avgS = (sumSnore / executedDays).toInt()
                 val avgH = (sumHeavy / executedDays).toInt()
                 
-                tvMonthlyAverage?.text = "【過去30日間 ($executedDays 日実行) の平均データ】\n" +
+                tvMonthlyAverage?.text = "【過去30日間 ($executedDays 日実行) の平均】\n" +
                         "静音: $avgQ%   安眠: $avgN%\n" +
                         "いびき: $avgS%   大いびき: $avgH%"
             } else {

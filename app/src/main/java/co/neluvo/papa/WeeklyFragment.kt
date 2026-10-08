@@ -1,6 +1,6 @@
 //==================================================
 // FILE: /app/src/main/java/co/neluvo/papa/WeeklyFragment.kt
-// VER : 1.01-14
+// VER : 1.01-16
 //==================================================
 package co.neluvo.papa
 
@@ -19,6 +19,7 @@ class WeeklyFragment : Fragment() {
     private lateinit var dbHelper: AmplitudeDbHelper
     private var trendGraphWeekly: TrendGraphView? = null
     private var tvWeeklyAverage: TextView? = null
+    private var pieChartWeekly: PieChartView? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -49,6 +50,16 @@ class WeeklyFragment : Fragment() {
             val tvId = resources.getIdentifier("tvWeeklyAverage", "id", pkg)
             if (tvId != 0) tvWeeklyAverage = view.findViewById(tvId)
 
+            val pieId = resources.getIdentifier("pieChartWeekly", "id", pkg)
+            if (pieId != 0) pieChartWeekly = view.findViewById(pieId)
+
+            // グラフタップ時のジャンプ処理
+            trendGraphWeekly?.onBarClickListener = { data ->
+                data.filename?.let { fname ->
+                    (activity as? MainActivity)?.jumpToDailyTab(fname)
+                }
+            }
+
             loadWeeklyData()
         } catch (e: Exception) {
             e.printStackTrace()
@@ -57,7 +68,6 @@ class WeeklyFragment : Fragment() {
 
     private fun loadWeeklyData() {
         try {
-            // 【変更】睡眠日基準（正午切り替え）のため、現在時刻から12時間を引いた時間をベースとする
             val shiftMs = 12 * 60 * 60 * 1000L
             val baseTime = System.currentTimeMillis() - shiftMs
             
@@ -69,7 +79,7 @@ class WeeklyFragment : Fragment() {
             cal.set(Calendar.SECOND, 0)
             cal.set(Calendar.MILLISECOND, 0)
             
-            val startTs = cal.timeInMillis + shiftMs // 検索用に実際の時間に直す
+            val startTs = cal.timeInMillis + shiftMs
             val endTs = System.currentTimeMillis()
 
             val stats = dbHelper.getDailyStats(startTs, endTs)
@@ -84,6 +94,12 @@ class WeeklyFragment : Fragment() {
             var sumNormal = 0f
             var sumSnore = 0f
             var sumHeavy = 0f
+            
+            // 円グラフ用（総カウント）
+            var totalQ = 0
+            var totalN = 0
+            var totalS = 0
+            var totalH = 0
 
             for (i in 0..6) {
                 val targetCal = Calendar.getInstance()
@@ -100,19 +116,26 @@ class WeeklyFragment : Fragment() {
                     val sPct = stat.snoreCount / total * 100f
                     val hPct = stat.heavyCount / total * 100f
 
-                    trendDataList.add(TrendGraphView.TrendData(dispStr, true, qPct, nPct, sPct, hPct))
+                    // 【修正】コンパイルエラーの原因だった引数を stat.repFilename を追加して解決
+                    trendDataList.add(TrendGraphView.TrendData(dispStr, stat.repFilename, true, qPct, nPct, sPct, hPct))
                     
                     executedDays++
                     sumQuiet += qPct
                     sumNormal += nPct
                     sumSnore += sPct
                     sumHeavy += hPct
+                    
+                    totalQ += stat.quietCount
+                    totalN += stat.normalCount
+                    totalS += stat.snoreCount
+                    totalH += stat.heavyCount
                 } else {
-                    trendDataList.add(TrendGraphView.TrendData(dispStr, false, 0f, 0f, 0f, 0f))
+                    trendDataList.add(TrendGraphView.TrendData(dispStr, null, false, 0f, 0f, 0f, 0f))
                 }
             }
 
             trendGraphWeekly?.setData(trendDataList)
+            pieChartWeekly?.setData(totalQ, totalN, totalS, totalH)
 
             if (executedDays > 0) {
                 val avgQ = (sumQuiet / executedDays).toInt()
@@ -120,7 +143,7 @@ class WeeklyFragment : Fragment() {
                 val avgS = (sumSnore / executedDays).toInt()
                 val avgH = (sumHeavy / executedDays).toInt()
                 
-                tvWeeklyAverage?.text = "【$executedDays 日間の平均データ】\n" +
+                tvWeeklyAverage?.text = "【$executedDays 日間の平均】\n" +
                         "静音: $avgQ%   安眠: $avgN%\n" +
                         "いびき: $avgS%   大いびき: $avgH%"
             } else {
