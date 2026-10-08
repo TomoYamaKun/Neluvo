@@ -1,6 +1,6 @@
 //==================================================
 // FILE: /app/src/main/java/co/neluvo/papa/AmplitudeDbHelper.kt
-// VER : 1.01-05
+// VER : 1.01-14
 //==================================================
 package co.neluvo.papa
 
@@ -15,7 +15,16 @@ data class AmplitudeRecord(
     val timestamp: Long,
     val batteryLevel: Int,
     val isCharging: Boolean,
-    val manualLevel: Int = -1 // -1なら自動判定、0〜3なら手動修正値
+    val manualLevel: Int = -1
+)
+
+data class DailyStat(
+    val dateStr: String,
+    val totalCount: Int,
+    val quietCount: Int,
+    val normalCount: Int,
+    val snoreCount: Int,
+    val heavyCount: Int
 )
 
 class AmplitudeDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
@@ -72,7 +81,6 @@ class AmplitudeDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_N
         }
     }
 
-    // 既存の RecordingService.kt に合わせ、第4引数を isCharging: Int に修正
     fun insertAmplitude(filename: String, amplitude: Int, batteryLevel: Int, isCharging: Int) {
         try {
             val db = writableDatabase
@@ -81,7 +89,7 @@ class AmplitudeDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_N
                 put(COLUMN_AMPLITUDE, amplitude)
                 put(COLUMN_TIMESTAMP, System.currentTimeMillis())
                 put(COLUMN_BATTERY, batteryLevel)
-                put(COLUMN_IS_CHARGING, isCharging) // Intをそのまま保存
+                put(COLUMN_IS_CHARGING, isCharging)
                 put(COLUMN_MANUAL_LEVEL, -1)
             }
             db.insert(TABLE_NAME, null, values)
@@ -104,13 +112,52 @@ class AmplitudeDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_N
                     val amp = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_AMPLITUDE))
                     val ts = cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_TIMESTAMP))
                     val bat = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_BATTERY))
-                    // DBのInt値をBooleanに変換してレコードオブジェクトを生成
                     val chg = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_IS_CHARGING)) == 1
                     val manLevel = try {
                         cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_MANUAL_LEVEL))
                     } catch (e: Exception) { -1 }
 
                     list.add(AmplitudeRecord(filename, amp, ts, bat, chg, manLevel))
+                } while (cursor.moveToNext())
+            }
+            cursor.close()
+            db.close()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return list
+    }
+
+    // 【変更】日付判定を12時間マイナス(43200000ms)して「お昼12時切り替え」に変更
+    fun getDailyStats(startTimestamp: Long, endTimestamp: Long): List<DailyStat> {
+        val list = mutableListOf<DailyStat>()
+        try {
+            val db = readableDatabase
+            val query = """
+                SELECT 
+                  strftime('%Y-%m-%d', (timestamp - 43200000) / 1000, 'unixepoch', 'localtime') as day_date,
+                  COUNT(*) as total_count,
+                  SUM(CASE WHEN manual_level = 0 OR (manual_level = -1 AND amplitude < 1000) THEN 1 ELSE 0 END) as quiet_count,
+                  SUM(CASE WHEN manual_level = 1 OR (manual_level = -1 AND amplitude >= 1000 AND amplitude < 3000) THEN 1 ELSE 0 END) as normal_count,
+                  SUM(CASE WHEN manual_level = 2 OR (manual_level = -1 AND amplitude >= 3000 AND amplitude < 8000) THEN 1 ELSE 0 END) as snore_count,
+                  SUM(CASE WHEN manual_level = 3 OR (manual_level = -1 AND amplitude >= 8000) THEN 1 ELSE 0 END) as heavy_count
+                FROM amplitude_log
+                WHERE timestamp >= ? AND timestamp <= ?
+                GROUP BY day_date
+                ORDER BY day_date ASC
+            """.trimIndent()
+            
+            val cursor = db.rawQuery(query, arrayOf(startTimestamp.toString(), endTimestamp.toString()))
+            if (cursor.moveToFirst()) {
+                do {
+                    val dateStr = cursor.getString(cursor.getColumnIndexOrThrow("day_date"))
+                    val total = cursor.getInt(cursor.getColumnIndexOrThrow("total_count"))
+                    val quiet = cursor.getInt(cursor.getColumnIndexOrThrow("quiet_count"))
+                    val normal = cursor.getInt(cursor.getColumnIndexOrThrow("normal_count"))
+                    val snore = cursor.getInt(cursor.getColumnIndexOrThrow("snore_count"))
+                    val heavy = cursor.getInt(cursor.getColumnIndexOrThrow("heavy_count"))
+                    
+                    list.add(DailyStat(dateStr, total, quiet, normal, snore, heavy))
                 } while (cursor.moveToNext())
             }
             cursor.close()

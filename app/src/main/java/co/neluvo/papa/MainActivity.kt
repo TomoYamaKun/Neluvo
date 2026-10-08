@@ -1,5 +1,7 @@
-//app/src/main/java/co/neluvo/papa/MainActivity.kt
-//ver 1.00-27
+//==================================================
+// FILE: /app/src/main/java/co/neluvo/papa/MainActivity.kt
+// VER : 1.01-12
+//==================================================
 package co.neluvo.papa
 
 import android.graphics.Color
@@ -54,8 +56,11 @@ class MainActivity : AppCompatActivity() {
                     return try {
                         when (position) {
                             0 -> HomeFragment()
-                            1 -> LogFragment() // 新設: ログ画面
+                            1 -> LogFragment()
                             2 -> DailyFragment()
+                            // 【追加】週間・月間フラグメントを紐付け
+                            3 -> WeeklyFragment()
+                            4 -> MonthlyFragment()
                             else -> SimpleFragment.newInstance("${tabTitles[position]}\n(${AppVersion.getFullVersionInfo()})")
                         }
                     } catch (e: Throwable) {
