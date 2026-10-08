@@ -1,6 +1,6 @@
 //==================================================
 // FILE: /app/src/main/java/co/neluvo/papa/MainActivity.kt
-// VER : 1.01-15
+// VER : 1.01-17
 //==================================================
 package co.neluvo.papa
 
@@ -34,7 +34,6 @@ class MainActivity : AppCompatActivity() {
         "バックアップ"
     )
 
-    // ジャンプ先ファイル名を保持する変数
     var targetDailyFilename: String? = null
     private var viewPager: ViewPager2? = null
 
@@ -64,6 +63,8 @@ class MainActivity : AppCompatActivity() {
                             2 -> DailyFragment()
                             3 -> WeeklyFragment()
                             4 -> MonthlyFragment()
+                            // 【追加】バックアップタブの紐付け
+                            5 -> BackupFragment()
                             else -> SimpleFragment.newInstance("${tabTitles[position]}\n(${AppVersion.getFullVersionInfo()})")
                         }
                     } catch (e: Throwable) {
@@ -83,7 +84,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // グラフタップ時に呼ばれ、日次タブ(index=2)へ強制移動するメソッド
     fun jumpToDailyTab(filename: String) {
         targetDailyFilename = filename
         viewPager?.currentItem = 2

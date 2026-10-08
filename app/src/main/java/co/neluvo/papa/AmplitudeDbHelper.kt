@@ -1,6 +1,6 @@
 //==================================================
 // FILE: /app/src/main/java/co/neluvo/papa/AmplitudeDbHelper.kt
-// VER : 1.01-15
+// VER : 1.01-17
 //==================================================
 package co.neluvo.papa
 
@@ -20,7 +20,7 @@ data class AmplitudeRecord(
 
 data class DailyStat(
     val dateStr: String,
-    val repFilename: String?, // タップ遷移用に追加
+    val repFilename: String?,
     val totalCount: Int,
     val quietCount: Int,
     val normalCount: Int,
@@ -168,6 +168,45 @@ class AmplitudeDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_N
             e.printStackTrace()
         }
         return list
+    }
+
+    // 【追加】指定ファイルの「大いびき割合（%）」を取得する
+    fun getHeavySnorePercentage(filename: String): Float {
+        var pct = 0f
+        try {
+            val db = readableDatabase
+            val query = """
+                SELECT 
+                  COUNT(*) as total_count,
+                  SUM(CASE WHEN manual_level = 3 OR (manual_level = -1 AND amplitude >= 8000) THEN 1 ELSE 0 END) as heavy_count
+                FROM amplitude_log
+                WHERE filename = ?
+            """.trimIndent()
+            val cursor = db.rawQuery(query, arrayOf(filename))
+            if (cursor.moveToFirst()) {
+                val total = cursor.getInt(cursor.getColumnIndexOrThrow("total_count"))
+                val heavy = cursor.getInt(cursor.getColumnIndexOrThrow("heavy_count"))
+                if (total > 0) {
+                    pct = (heavy.toFloat() / total.toFloat()) * 100f
+                }
+            }
+            cursor.close()
+            db.close()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return pct
+    }
+
+    // 【追加】1年以上経過した古いDBログを自動削除する
+    fun deleteOldData(thresholdTimestamp: Long) {
+        try {
+            val db = writableDatabase
+            db.delete(TABLE_NAME, "$COLUMN_TIMESTAMP < ?", arrayOf(thresholdTimestamp.toString()))
+            db.close()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     fun updateManualLevel(filename: String, targetTimestamp: Long, timeWindowMs: Long, newLevel: Int) {

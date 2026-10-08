@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--================================================-->
+<!-- FILE: /app/src/main/res/layout/fragment_backup.xml -->
+<!-- VER : 1.01-21 -->
+<!--================================================-->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="ローカルデータ占有率"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <co.neluvo.papa.StorageBarView
+            android:id="@+id/storageBarView"
+            android:layout_width="match_parent"
+            android:layout_height="30dp"
+            android:layout_marginTop="16dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tvStorageDb"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="■ データベース: 計算中..."
+                android:textColor="#2196F3" />
+
+            <TextView
+                android:id="@+id/tvStorageAudio"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="■ 音声データ: 計算中..."
+                android:textColor="#4CAF50" />
+
+            <TextView
+                android:id="@+id/tvStorageFree"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="■ 空き容量 (1GB上限): 計算中..."
+                android:textColor="#999999" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="24dp"
+            android:layout_marginBottom="24dp"
+            android:background="#E0E0E0" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="データ整理＆バックアップ"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="※古い音声データは、大いびきが20%以上の日を除き自動で削除されます。"
+            android:textColor="#666666"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/tvCleanupLog"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="#F5F5F5"
+            android:padding="8dp"
+            android:text="[ログ] 自動整理待機中..."
+            android:textSize="12sp" />
+
+        <Button
+            android:id="@+id/btnRunCleanup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="容量を計算して自動整理を実行" />
+
+        <Button
+            android:id="@+id/btnCloudBackup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:backgroundTint="#FF9800"
+            android:text="ZIPファイルとしてバックアップ保存" />
+
+        <Button
+            android:id="@+id/btnRestoreBackup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:backgroundTint="#F44336"
+            android:text="ZIPファイルから復元する" />
+
+    </LinearLayout>
+</ScrollView>
