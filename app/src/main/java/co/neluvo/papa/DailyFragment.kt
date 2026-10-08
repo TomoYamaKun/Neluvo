@@ -1,6 +1,6 @@
 //==================================================
 // FILE: /app/src/main/java/co/neluvo/papa/DailyFragment.kt
-// VER : 1.01-09
+// VER : 1.01-10
 //==================================================
 package co.neluvo.papa
 
@@ -47,7 +47,6 @@ class DailyFragment : Fragment() {
     private var tvAnalysis: TextView? = null
     
     private var batteryGraphView: BatteryGraphView? = null
-    // 型を専用クラスに明示
     private var pieChartView: PieChartView? = null
 
     // 時間管理用
@@ -202,7 +201,6 @@ class DailyFragment : Fragment() {
 
                 updateAnalysisText(logs)
                 
-                // バッテリーグラフへデータ送信
                 try {
                     val batteryDataPoints = downsampledLogs.map { log ->
                         BatteryGraphView.DataPoint(log.batteryLevel, log.isCharging)
@@ -302,9 +300,9 @@ class DailyFragment : Fragment() {
             val options = arrayOf("静音", "安眠 (寝返り等)", "いびき", "ひどい (大いびき)")
             val levelValues = arrayOf(0, 1, 2, 3)
 
+            // 【修正】setMessageを削除し、タイトルのみにしました
             AlertDialog.Builder(requireContext())
-                .setTitle("判定の修正")
-                .setMessage("選択した時間の判定を修正しますか？")
+                .setTitle("判定の修正 (選択してください)")
                 .setItems(options) { _, which ->
                     try {
                         val selectedLevel = levelValues[which]
@@ -339,7 +337,6 @@ class DailyFragment : Fragment() {
                 }
             }
             
-            // 円グラフへ集計データをセット
             pieChartView?.setData(quiet, normal, snore, heavy)
             
             val total = logs.size.toFloat()
