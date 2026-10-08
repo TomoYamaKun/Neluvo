@@ -1,5 +1,7 @@
-//app/src/main/java/co/neluvo/papa/AmplitudeDbHelper.kt
-//ver 1.00-28
+//==================================================
+// FILE: /app/src/main/java/co/neluvo/papa/AmplitudeDbHelper.kt
+// VER : 1.01-05
+//==================================================
 package co.neluvo.papa
 
 import android.content.ContentValues
@@ -8,118 +10,144 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 
 data class AmplitudeRecord(
-    val id: Long,
-    val fileName: String,
+    val filename: String,
     val amplitude: Int,
     val timestamp: Long,
     val batteryLevel: Int,
-    val isCharging: Int
+    val isCharging: Boolean,
+    val manualLevel: Int = -1 // -1なら自動判定、0〜3なら手動修正値
 )
 
 class AmplitudeDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
 
-    override fun onCreate(db: SQLiteDatabase) {
-        createTableIfNotExists(db)
+    companion object {
+        private const val DATABASE_NAME = "NeluvoPapa.db"
+        private const val DATABASE_VERSION = 4
+        private const val TABLE_NAME = "amplitude_log"
+        private const val COLUMN_ID = "id"
+        private const val COLUMN_FILENAME = "filename"
+        private const val COLUMN_AMPLITUDE = "amplitude"
+        private const val COLUMN_TIMESTAMP = "timestamp"
+        private const val COLUMN_BATTERY = "battery"
+        private const val COLUMN_IS_CHARGING = "is_charging"
+        private const val COLUMN_MANUAL_LEVEL = "manual_level"
     }
 
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_NAME")
-        createTableIfNotExists(db)
-    }
-
-    override fun onOpen(db: SQLiteDatabase) {
-        super.onOpen(db)
-        createTableIfNotExists(db)
-    }
-
-    private fun createTableIfNotExists(db: SQLiteDatabase) {
-        val createTable = """
-            CREATE TABLE IF NOT EXISTS $TABLE_NAME (
-                $COLUMN_ID INTEGER PRIMARY KEY AUTOINCREMENT,
-                $COLUMN_FILE_NAME TEXT NOT NULL,
-                $COLUMN_AMPLITUDE INTEGER NOT NULL,
-                $COLUMN_TIMESTAMP INTEGER NOT NULL,
-                $COLUMN_BATTERY_LEVEL INTEGER DEFAULT -1,
-                $COLUMN_IS_CHARGING INTEGER DEFAULT 0
-            )
-        """.trimIndent()
-        db.execSQL(createTable)
-    }
-
-    fun insertAmplitude(fileName: String, amplitude: Int, batteryLevel: Int, isCharging: Int) {
+    override fun onCreate(db: SQLiteDatabase?) {
         try {
-            val db = this.writableDatabase
-            val values = ContentValues().apply {
-                put(COLUMN_FILE_NAME, fileName)
-                put(COLUMN_AMPLITUDE, amplitude)
-                put(COLUMN_TIMESTAMP, System.currentTimeMillis())
-                put(COLUMN_BATTERY_LEVEL, batteryLevel)
-                put(COLUMN_IS_CHARGING, isCharging)
-            }
-            db.insert(TABLE_NAME, null, values)
+            val createTable = """
+                CREATE TABLE IF NOT EXISTS $TABLE_NAME (
+                    $COLUMN_ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                    $COLUMN_FILENAME TEXT,
+                    $COLUMN_AMPLITUDE INTEGER,
+                    $COLUMN_TIMESTAMP INTEGER,
+                    $COLUMN_BATTERY INTEGER,
+                    $COLUMN_IS_CHARGING INTEGER,
+                    $COLUMN_MANUAL_LEVEL INTEGER DEFAULT -1
+                )
+            """.trimIndent()
+            db?.execSQL(createTable)
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
-    fun getAmplitudesForFile(fileName: String): List<AmplitudeRecord> {
+    override fun onUpgrade(db: SQLiteDatabase?, oldVersion: Int, newVersion: Int) {
+        try {
+            if (oldVersion < 4) {
+                db?.execSQL("ALTER TABLE $TABLE_NAME ADD COLUMN $COLUMN_MANUAL_LEVEL INTEGER DEFAULT -1")
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun createTableIfNotExists() {
+        try {
+            val db = writableDatabase
+            onCreate(db)
+            db.close()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    // 既存の RecordingService.kt に合わせ、第4引数を isCharging: Int に修正
+    fun insertAmplitude(filename: String, amplitude: Int, batteryLevel: Int, isCharging: Int) {
+        try {
+            val db = writableDatabase
+            val values = ContentValues().apply {
+                put(COLUMN_FILENAME, filename)
+                put(COLUMN_AMPLITUDE, amplitude)
+                put(COLUMN_TIMESTAMP, System.currentTimeMillis())
+                put(COLUMN_BATTERY, batteryLevel)
+                put(COLUMN_IS_CHARGING, isCharging) // Intをそのまま保存
+                put(COLUMN_MANUAL_LEVEL, -1)
+            }
+            db.insert(TABLE_NAME, null, values)
+            db.close()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun getAmplitudesForFile(filename: String): List<AmplitudeRecord> {
         val list = mutableListOf<AmplitudeRecord>()
         try {
-            val db = this.readableDatabase
-            createTableIfNotExists(db)
-
+            val db = readableDatabase
             val cursor = db.query(
-                TABLE_NAME,
-                null,
-                "$COLUMN_FILE_NAME = ?",
-                arrayOf(fileName),
-                null,
-                null,
-                "$COLUMN_ID ASC"
+                TABLE_NAME, null, "$COLUMN_FILENAME = ?", arrayOf(filename),
+                null, null, "$COLUMN_TIMESTAMP ASC"
             )
+            if (cursor.moveToFirst()) {
+                do {
+                    val amp = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_AMPLITUDE))
+                    val ts = cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_TIMESTAMP))
+                    val bat = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_BATTERY))
+                    // DBのInt値をBooleanに変換してレコードオブジェクトを生成
+                    val chg = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_IS_CHARGING)) == 1
+                    val manLevel = try {
+                        cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_MANUAL_LEVEL))
+                    } catch (e: Exception) { -1 }
 
-            cursor?.use { c ->
-                val idIdx = c.getColumnIndexOrThrow(COLUMN_ID)
-                val fileIdx = c.getColumnIndexOrThrow(COLUMN_FILE_NAME)
-                val ampIdx = c.getColumnIndexOrThrow(COLUMN_AMPLITUDE)
-                val timeIdx = c.getColumnIndexOrThrow(COLUMN_TIMESTAMP)
-                
-                // バージョンアップで追加されたカラムが存在するかチェック
-                val batIdx = c.getColumnIndex(COLUMN_BATTERY_LEVEL)
-                val chargeIdx = c.getColumnIndex(COLUMN_IS_CHARGING)
-
-                while (c.moveToNext()) {
-                    val batLvl = if (batIdx != -1) c.getInt(batIdx) else -1
-                    val isCharge = if (chargeIdx != -1) c.getInt(chargeIdx) else 0
-
-                    list.add(
-                        AmplitudeRecord(
-                            id = c.getLong(idIdx),
-                            fileName = c.getString(fileIdx),
-                            amplitude = c.getInt(ampIdx),
-                            timestamp = c.getLong(timeIdx),
-                            batteryLevel = batLvl,
-                            isCharging = isCharge
-                        )
-                    )
-                }
+                    list.add(AmplitudeRecord(filename, amp, ts, bat, chg, manLevel))
+                } while (cursor.moveToNext())
             }
+            cursor.close()
+            db.close()
         } catch (e: Exception) {
             e.printStackTrace()
         }
         return list
     }
 
-    companion object {
-        private const val DATABASE_NAME = "neluvo_amplitude.db"
-        // カラム追加のためバージョンを3に繰り上げ（自動でマイグレーション）
-        private const val DATABASE_VERSION = 3
-        private const val TABLE_NAME = "amplitudes"
-        private const val COLUMN_ID = "id"
-        private const val COLUMN_FILE_NAME = "file_name"
-        private const val COLUMN_AMPLITUDE = "amplitude"
-        private const val COLUMN_TIMESTAMP = "timestamp"
-        private const val COLUMN_BATTERY_LEVEL = "battery_level"
-        private const val COLUMN_IS_CHARGING = "is_charging"
+    fun updateManualLevel(filename: String, targetTimestamp: Long, timeWindowMs: Long, newLevel: Int) {
+        try {
+            val db = writableDatabase
+            val minTs = targetTimestamp - timeWindowMs
+            val maxTs = targetTimestamp + timeWindowMs
+            val values = ContentValues().apply {
+                put(COLUMN_MANUAL_LEVEL, newLevel)
+            }
+            db.update(
+                TABLE_NAME,
+                values,
+                "$COLUMN_FILENAME = ? AND $COLUMN_TIMESTAMP BETWEEN ? AND ?",
+                arrayOf(filename, minTs.toString(), maxTs.toString())
+            )
+            db.close()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun deleteLogsForFile(filename: String) {
+        try {
+            val db = writableDatabase
+            db.delete(TABLE_NAME, "$COLUMN_FILENAME = ?", arrayOf(filename))
+            db.close()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 }

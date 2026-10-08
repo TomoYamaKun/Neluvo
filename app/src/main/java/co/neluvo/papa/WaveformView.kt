@@ -1,111 +1,142 @@
 //app/src/main/java/co/neluvo/papa/WaveformView.kt
-//ver 1.00-26
+//ver 1.01-04
 package co.neluvo.papa
 
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.RectF
 import android.util.AttributeSet
+import android.view.MotionEvent
 import android.view.View
-import kotlin.math.max
-import kotlin.math.min
+
+data class WaveData(val amplitude: Int, val timestamp: Long, val manualLevel: Int = -1)
 
 class WaveformView @JvmOverloads constructor(
-    context: Context,
-    attrs: AttributeSet? = null,
-    defStyleAttr: Int = 0
+    context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
 ) : View(context, attrs, defStyleAttr) {
 
-    private val amplitudes = mutableListOf<Int>()
-    private var maxBars = 60
-    private var playbackProgress = -1f
-
-    private val barPaint = Paint().apply {
-        isAntiAlias = true
-        color = Color.parseColor("#2196F3")
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
+        strokeCap = Paint.Cap.ROUND
     }
 
-    private val playedBarPaint = Paint().apply {
-        isAntiAlias = true
-        color = Color.parseColor("#FF9800")
-        style = Paint.Style.FILL
-    }
+    private val waveDataList = mutableListOf<WaveData>()
+    private var barWidth = 10f
+    private var spaceWidth = 4f
+    
+    var onWaveClickListener: ((WaveData) -> Unit)? = null
 
-    private val baselinePaint = Paint().apply {
-        color = Color.parseColor("#CCCCCC")
-        strokeWidth = 2f
-    }
+    private val colorQuiet = Color.parseColor("#4CAF50")
+    private val colorNormal = Color.parseColor("#03A9F4")
+    private val colorSnore = Color.parseColor("#FFEB3B")
+    private val colorHeavySnore = Color.parseColor("#F44336")
 
-    private val rectF = RectF()
-
-    fun addAmplitude(amp: Int) {
-        amplitudes.add(amp)
-        if (amplitudes.size > maxBars) {
-            amplitudes.removeAt(0)
+    fun setWaveData(list: List<WaveData>) {
+        try {
+            waveDataList.clear()
+            waveDataList.addAll(list)
+            invalidate()
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
-        postInvalidateOnAnimation()
     }
 
-    fun setWaveData(data: List<Int>) {
-        amplitudes.clear()
-        amplitudes.addAll(data)
-        playbackProgress = -1f
-        postInvalidateOnAnimation()
+    // HomeFragment等からのリアルタイム追加用インターフェースの復旧
+    fun addAmplitude(amplitude: Int) {
+        try {
+            waveDataList.add(WaveData(amplitude, System.currentTimeMillis(), -1))
+            // リアルタイム描画でのメモリ肥大化を防ぐため、一定数を超えたら古いデータを削除
+            if (waveDataList.size > 150) {
+                waveDataList.removeAt(0)
+            }
+            invalidate()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
-    fun setPlaybackProgress(progress: Float) {
-        playbackProgress = progress
-        postInvalidateOnAnimation()
-    }
-
+    // 既存処理（HomeFragment等）が使用するクリア用メソッドの復旧
     fun clear() {
-        amplitudes.clear()
-        playbackProgress = -1f
-        postInvalidateOnAnimation()
-    }
-
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        super.onSizeChanged(w, h, oldw, oldh)
-        // 画面幅に応じて最大バー数を自動調整 (リアルタイム描画用)
-        maxBars = max(20, w / 12)
+        try {
+            waveDataList.clear()
+            invalidate()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+        try {
+            if (waveDataList.isEmpty()) return
 
-        val centerY = height / 2f
-        canvas.drawLine(0f, centerY, width.toFloat(), centerY, baselinePaint)
-
-        if (amplitudes.isEmpty()) return
-
-        val count = amplitudes.size
-        // データ数が多い(全体ファイル表示)場合は隙間を狭くする
-        val gap = if (count > 50) 1f else 3f
-        val barWidth = max(1.5f, (width.toFloat() - (gap * (count + 1))) / count)
-        val maxAmp = 25000f
-
-        for (i in 0 until count) {
-            val amp = amplitudes[i].toFloat()
-            val normalized = min(1.0f, max(0.02f, amp / maxAmp))
-            val barHeight = max(4f, (height * 0.9f) * normalized)
-
-            val left = gap + i * (barWidth + gap)
-            val top = centerY - (barHeight / 2f)
-            val right = left + barWidth
-            val bottom = centerY + (barHeight / 2f)
-
-            rectF.set(left, top, right, bottom)
-
-            val paint = if (playbackProgress >= 0f && (i.toFloat() / count.toFloat()) <= playbackProgress) {
-                playedBarPaint
-            } else {
-                barPaint
+            val width = width.toFloat()
+            val height = height.toFloat()
+            val centerY = height / 2f
+            
+            val totalBars = waveDataList.size
+            if (totalBars > 0) {
+                val availableWidth = width / totalBars
+                barWidth = availableWidth * 0.7f
+                spaceWidth = availableWidth * 0.3f
             }
 
-            canvas.drawRoundRect(rectF, barWidth / 2f, barWidth / 2f, paint)
+            for (i in waveDataList.indices) {
+                val data = waveDataList[i]
+                val startX = i * (barWidth + spaceWidth)
+                
+                val maxAmp = 32767f
+                val ratio = (data.amplitude.toFloat() / maxAmp).coerceIn(0.01f, 1f)
+                val barHeight = (height * 0.8f) * ratio
+                
+                val level = if (data.manualLevel != -1) {
+                    data.manualLevel
+                } else {
+                    when {
+                        data.amplitude < 1000 -> 0
+                        data.amplitude < 3000 -> 1
+                        data.amplitude < 8000 -> 2
+                        else -> 3
+                    }
+                }
+
+                paint.color = when (level) {
+                    0 -> colorQuiet
+                    1 -> colorNormal
+                    2 -> colorSnore
+                    3 -> colorHeavySnore
+                    else -> colorQuiet
+                }
+
+                paint.strokeWidth = barWidth
+                canvas.drawLine(
+                    startX + barWidth / 2f, 
+                    centerY - barHeight / 2f, 
+                    startX + barWidth / 2f, 
+                    centerY + barHeight / 2f, 
+                    paint
+                )
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        try {
+            if (event.action == MotionEvent.ACTION_UP) {
+                val totalWidth = barWidth + spaceWidth
+                val tappedIndex = (event.x / totalWidth).toInt()
+                
+                if (tappedIndex in waveDataList.indices) {
+                    val tappedData = waveDataList[tappedIndex]
+                    onWaveClickListener?.invoke(tappedData)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return true
     }
 }
