@@ -1,6 +1,6 @@
 //==================================================
 // FILE: /app/src/main/java/co/neluvo/papa/MainActivity.kt
-// VER : 1.01-17
+// VER : 1.01-28
 //==================================================
 package co.neluvo.papa
 
@@ -25,13 +25,14 @@ import java.io.StringWriter
 
 class MainActivity : AppCompatActivity() {
 
+    // 【変更】ファイル一覧を第6のタブとして復元
     private val tabTitles = arrayOf(
         "スタート",
-        "ログ",
         "日次",
         "週間",
         "月間",
-        "バックアップ"
+        "バックアップ",
+        "ファイル一覧"
     )
 
     var targetDailyFilename: String? = null
@@ -59,12 +60,11 @@ class MainActivity : AppCompatActivity() {
                     return try {
                         when (position) {
                             0 -> HomeFragment()
-                            1 -> LogFragment()
-                            2 -> DailyFragment()
-                            3 -> WeeklyFragment()
-                            4 -> MonthlyFragment()
-                            // 【追加】バックアップタブの紐付け
-                            5 -> BackupFragment()
+                            1 -> DailyFragment()
+                            2 -> WeeklyFragment()
+                            3 -> MonthlyFragment()
+                            4 -> BackupFragment()
+                            5 -> LogFragment() // 【追加】第6タブにファイル一覧を配置
                             else -> SimpleFragment.newInstance("${tabTitles[position]}\n(${AppVersion.getFullVersionInfo()})")
                         }
                     } catch (e: Throwable) {
@@ -86,7 +86,7 @@ class MainActivity : AppCompatActivity() {
 
     fun jumpToDailyTab(filename: String) {
         targetDailyFilename = filename
-        viewPager?.currentItem = 2
+        viewPager?.currentItem = 1
     }
 
     private fun showRawErrorScreen(title: String, detailMessage: String) {

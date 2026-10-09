@@ -1,6 +1,6 @@
 //==================================================
 // FILE: /app/src/main/java/co/neluvo/papa/HomeFragment.kt
-// VER : 1.01-25
+// VER : 1.01-27
 //==================================================
 package co.neluvo.papa
 
@@ -34,7 +34,6 @@ class HomeFragment : Fragment() {
     private lateinit var tvStatus: TextView
     private lateinit var btnStart: Button
     private lateinit var btnStop: Button
-    private lateinit var tvFilePath: TextView
     private lateinit var tvVersion: TextView
     private lateinit var btnAbout: Button
     private lateinit var waveformView: WaveformView
@@ -74,7 +73,6 @@ class HomeFragment : Fragment() {
         tvStatus = view.findViewById(R.id.tvStatus)
         btnStart = view.findViewById(R.id.btnStart)
         btnStop = view.findViewById(R.id.btnStop)
-        tvFilePath = view.findViewById(R.id.tvFilePath)
         tvVersion = view.findViewById(R.id.tvVersion)
         btnAbout = view.findViewById(R.id.btnAbout)
         waveformView = view.findViewById(R.id.waveformView)
@@ -126,8 +124,6 @@ class HomeFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        
-        // 【追加】サービスが実際に動いているかどうかを確認してUIを同期する
         isRecording = RecordingService.isRunning
         updateUi()
 
@@ -220,7 +216,6 @@ class HomeFragment : Fragment() {
             npMinutes.isEnabled = false
             chkScreenOff.isEnabled = false
             npScreenOffSec.isEnabled = false
-            tvFilePath.text = "保存フォルダ: " + requireContext().getExternalFilesDir(null)?.absolutePath
         } else {
             tvStatus.text = "停止中"
             btnStart.isEnabled = true
