@@ -1,6 +1,6 @@
 //==================================================
 // FILE: /app/src/main/java/co/neluvo/papa/DailyFragment.kt
-// VER : 1.01-15
+// VER : 1.01-26
 //==================================================
 package co.neluvo.papa
 
@@ -147,7 +147,8 @@ class DailyFragment : Fragment() {
                 spinnerFiles?.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
                     override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
                         val selectedFile = loadedFileNames[position]
-                        setupAudioData(selectedFile)
+                        // 【変更】メインスレッドをブロックしないよう、非同期（バックグラウンド）でデータを読み込む
+                        loadAudioDataAsync(selectedFile)
                     }
                     override fun onNothingSelected(parent: AdapterView<*>?) {}
                 }
@@ -188,59 +189,128 @@ class DailyFragment : Fragment() {
         }
     }
 
-    private fun setupAudioData(filename: String) {
+    // 【新規】重いデータベース読み込みとMediaPlayerの準備を別スレッドで実行
+    private fun loadAudioDataAsync(filename: String) {
         currentFilename = filename
-        try {
-            val audioFile = File(requireContext().getExternalFilesDir(null), filename)
-            val fileSizeBytes = audioFile.length()
-            val fileSizeMb = String.format(Locale.US, "%.2f MB", fileSizeBytes / (1024.0 * 1024.0))
-            tvFileInfo?.text = "ファイル名: $filename\nサイズ: $fileSizeMb"
+        tvFileInfo?.text = "ファイル名: $filename\n読み込み中..."
+        btnPlay?.isEnabled = false
 
-            val logs = dbHelper.getAmplitudesForFile(filename)
-            if (logs.isNotEmpty()) {
-                startTimestampMs = logs.first().timestamp
-                endTimestampMs = logs.last().timestamp
+        Thread {
+            try {
+                val audioFile = File(requireContext().getExternalFilesDir(null), filename)
+                val fileSizeBytes = audioFile.length()
+                val fileSizeMb = String.format(Locale.US, "%.2f MB", fileSizeBytes / (1024.0 * 1024.0))
+
+                val logs = dbHelper.getAmplitudesForFile(filename)
                 
-                tvCurrentTime?.text = timeFormat.format(Date(startTimestampMs))
-                tvTotalTime?.text = timeFormat.format(Date(endTimestampMs))
+                var waveDataList = listOf<WaveData>()
+                var batteryDataPoints = listOf<BatteryGraphView.DataPoint>()
+                var analysisQuiet = 0; var analysisNormal = 0; var analysisSnore = 0; var analysisHeavy = 0
+                var startBat = -1; var endBat = -1
 
-                val totalDuration = endTimestampMs - startTimestampMs
-                val maxPoints = 100
-                dynamicTimeWindowMs = maxOf(30000L, (totalDuration / maxPoints) / 2L)
+                if (logs.isNotEmpty()) {
+                    startTimestampMs = logs.first().timestamp
+                    endTimestampMs = logs.last().timestamp
 
-                val step = maxOf(1, logs.size / maxPoints)
-                val downsampledLogs = logs.filterIndexed { index, _ -> index % step == 0 }
+                    val totalDuration = endTimestampMs - startTimestampMs
+                    val maxPoints = 100
+                    dynamicTimeWindowMs = maxOf(30000L, (totalDuration / maxPoints) / 2L)
 
-                val waveDataList = downsampledLogs.map { log ->
-                    WaveData(log.amplitude, log.timestamp, log.manualLevel)
-                }
-                waveformDaily?.setWaveData(waveDataList)
+                    val step = maxOf(1, logs.size / maxPoints)
+                    val downsampledLogs = logs.filterIndexed { index, _ -> index % step == 0 }
 
-                updateAnalysisText(logs)
-                
-                try {
-                    val batteryDataPoints = downsampledLogs.map { log ->
+                    waveDataList = downsampledLogs.map { log ->
+                        WaveData(log.amplitude, log.timestamp, log.manualLevel)
+                    }
+
+                    batteryDataPoints = downsampledLogs.map { log ->
                         BatteryGraphView.DataPoint(log.batteryLevel, log.isCharging)
                     }
-                    batteryGraphView?.setData(batteryDataPoints)
-                } catch (e: Exception) {
-                    e.printStackTrace()
+
+                    startBat = logs.first().batteryLevel
+                    endBat = logs.last().batteryLevel
+
+                    for (log in logs) {
+                        val level = if (log.manualLevel != -1) log.manualLevel else {
+                            when {
+                                log.amplitude < 1000 -> 0
+                                log.amplitude < 3000 -> 1
+                                log.amplitude < 8000 -> 2
+                                else -> 3
+                            }
+                        }
+                        when (level) {
+                            0 -> analysisQuiet++; 1 -> analysisNormal++; 2 -> analysisSnore++; 3 -> analysisHeavy++
+                        }
+                    }
+                }
+
+                var preparedMp: MediaPlayer? = null
+                if (audioFile.exists()) {
+                    try {
+                        preparedMp = MediaPlayer().apply {
+                            setDataSource(audioFile.absolutePath)
+                            prepare()
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+
+                // 結果をメインスレッドに反映
+                Handler(Looper.getMainLooper()).post {
+                    try {
+                        tvFileInfo?.text = "ファイル名: $filename\nサイズ: $fileSizeMb"
+
+                        if (logs.isNotEmpty()) {
+                            tvCurrentTime?.text = timeFormat.format(Date(startTimestampMs))
+                            tvTotalTime?.text = timeFormat.format(Date(endTimestampMs))
+                            waveformDaily?.setWaveData(waveDataList)
+                            batteryGraphView?.setData(batteryDataPoints)
+                            updateAnalysisTextDirect(analysisQuiet, analysisNormal, analysisSnore, analysisHeavy, startBat, endBat, logs.size)
+                        } else {
+                            tvAnalysis?.text = "【分析結果】\nデータがありません"
+                        }
+
+                        mediaPlayer?.release()
+                        mediaPlayer = preparedMp
+                        if (mediaPlayer != null) {
+                            seekBar?.max = mediaPlayer!!.duration
+                            btnPlay?.isEnabled = true
+                        } else {
+                            btnPlay?.isEnabled = false
+                        }
+                        stopPlayback()
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Handler(Looper.getMainLooper()).post {
+                    tvFileInfo?.text = "ファイルの読み込みに失敗しました"
                 }
             }
+        }.start()
+    }
 
-            if (audioFile.exists()) {
-                mediaPlayer?.release()
-                mediaPlayer = MediaPlayer().apply {
-                    setDataSource(audioFile.absolutePath)
-                    setOnPreparedListener { mp ->
-                        seekBar?.max = mp.duration
-                        btnPlay?.isEnabled = true
-                    }
-                    setOnCompletionListener {
-                        stopPlayback()
-                    }
-                    prepareAsync()
-                }
+    private fun updateAnalysisTextDirect(quiet: Int, normal: Int, snore: Int, heavy: Int, startBat: Int, endBat: Int, totalLogs: Int) {
+        try {
+            pieChartView?.setData(quiet, normal, snore, heavy)
+            
+            val total = totalLogs.toFloat()
+            if (total > 0f) {
+                val qPct = ((quiet.toFloat() / total) * 100f).toInt()
+                val nPct = ((normal.toFloat() / total) * 100f).toInt()
+                val sPct = ((snore.toFloat() / total) * 100f).toInt()
+                val hPct = ((heavy.toFloat() / total) * 100f).toInt()
+                
+                val batText = if (startBat >= 0 && endBat >= 0) "\nバッテリー消費: $startBat% → $endBat%" else ""
+
+                tvAnalysis?.text = "【分析結果】\n静音: $qPct%  安眠: $nPct%\nいびき: $sPct%  大いびき: $hPct%$batText"
+            } else {
+                tvAnalysis?.text = "【分析結果】\nデータがありません"
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -324,52 +394,13 @@ class DailyFragment : Fragment() {
                         val selectedLevel = levelValues[which]
                         dbHelper.updateManualLevel(filename, waveData.timestamp, dynamicTimeWindowMs, selectedLevel)
                         Toast.makeText(requireContext(), "判定を更新しました", Toast.LENGTH_SHORT).show()
-                        setupAudioData(filename)
+                        loadAudioDataAsync(filename)
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
                 }
                 .setNegativeButton("キャンセル", null)
                 .show()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    private fun updateAnalysisText(logs: List<AmplitudeRecord>) {
-        try {
-            var quiet = 0; var normal = 0; var snore = 0; var heavy = 0
-            for (log in logs) {
-                val level = if (log.manualLevel != -1) log.manualLevel else {
-                    when {
-                        log.amplitude < 1000 -> 0
-                        log.amplitude < 3000 -> 1
-                        log.amplitude < 8000 -> 2
-                        else -> 3
-                    }
-                }
-                when (level) {
-                    0 -> quiet++; 1 -> normal++; 2 -> snore++; 3 -> heavy++
-                }
-            }
-            
-            pieChartView?.setData(quiet, normal, snore, heavy)
-            
-            val total = logs.size.toFloat()
-            if (total > 0f) {
-                val qPct = ((quiet.toFloat() / total) * 100f).toInt()
-                val nPct = ((normal.toFloat() / total) * 100f).toInt()
-                val sPct = ((snore.toFloat() / total) * 100f).toInt()
-                val hPct = ((heavy.toFloat() / total) * 100f).toInt()
-                
-                val startBat = logs.first().batteryLevel
-                val endBat = logs.last().batteryLevel
-                val batText = if (startBat >= 0 && endBat >= 0) "\nバッテリー消費: $startBat% → $endBat%" else ""
-
-                tvAnalysis?.text = "【分析結果】\n静音: $qPct%  安眠: $nPct%\nいびき: $sPct%  大いびき: $hPct%$batText"
-            } else {
-                tvAnalysis?.text = "【分析結果】\nデータがありません"
-            }
         } catch (e: Exception) {
             e.printStackTrace()
         }

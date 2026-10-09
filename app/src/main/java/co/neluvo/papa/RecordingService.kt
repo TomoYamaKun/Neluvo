@@ -1,5 +1,7 @@
-//app/src/main/java/co/neluvo/papa/RecordingService.kt
-//ver 1.00-28
+//==================================================
+// FILE: /app/src/main/java/co/neluvo/papa/RecordingService.kt
+// VER : 1.01-25
+//==================================================
 package co.neluvo.papa
 
 import android.app.Notification
@@ -23,7 +25,6 @@ import java.util.Locale
 class RecordingService : Service() {
 
     private var mediaRecorder: MediaRecorder? = null
-    private var isRecording = false
     private var currentFileName = ""
 
     private lateinit var dbHelper: AmplitudeDbHelper
@@ -31,11 +32,10 @@ class RecordingService : Service() {
 
     private val amplitudeRunnable = object : Runnable {
         override fun run() {
-            if (isRecording && mediaRecorder != null) {
+            if (isRunning && mediaRecorder != null) {
                 try {
                     val amp = mediaRecorder?.maxAmplitude ?: 0
                     
-                    // バッテリー情報の取得
                     val batteryStatus = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
                     val level = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
                     val scale = batteryStatus?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
@@ -43,12 +43,10 @@ class RecordingService : Service() {
                     val status = batteryStatus?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
                     val isCharging = if (status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL) 1 else 0
 
-                    // DBに音量とバッテリー情報を保存
                     if (currentFileName.isNotEmpty()) {
                         dbHelper.insertAmplitude(currentFileName, amp, batteryPct, isCharging)
                     }
 
-                    // 波形描画用のブロードキャスト
                     val intent = Intent(ACTION_AMPLITUDE_UPDATE).apply {
                         putExtra(EXTRA_AMPLITUDE, amp)
                         setPackage(packageName)
@@ -64,8 +62,12 @@ class RecordingService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        dbHelper = AmplitudeDbHelper(this)
-        createNotificationChannel()
+        try {
+            dbHelper = AmplitudeDbHelper(this)
+            createNotificationChannel()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -77,7 +79,7 @@ class RecordingService : Service() {
     }
 
     private fun startRecording() {
-        if (isRecording) return
+        if (isRunning) return
 
         val sdf = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
         currentFileName = "neluvo_${sdf.format(Date())}.m4a"
@@ -98,19 +100,20 @@ class RecordingService : Service() {
                 start()
             }
 
-            isRecording = true
+            isRunning = true
             startForeground(NOTIFICATION_ID, createNotification())
             handler.post(amplitudeRunnable)
 
         } catch (e: Exception) {
             e.printStackTrace()
+            isRunning = false
             stopSelf()
         }
     }
 
     private fun stopRecording() {
-        if (!isRecording) return
-        isRecording = false
+        if (!isRunning) return
+        isRunning = false
         handler.removeCallbacks(amplitudeRunnable)
 
         try {
@@ -124,7 +127,12 @@ class RecordingService : Service() {
             mediaRecorder = null
         }
 
-        stopForeground(STOP_FOREGROUND_REMOVE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } else {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
+        }
         stopSelf()
     }
 
@@ -158,5 +166,9 @@ class RecordingService : Service() {
         const val EXTRA_AMPLITUDE = "extra_amplitude"
         private const val CHANNEL_ID = "recording_channel"
         private const val NOTIFICATION_ID = 1001
+
+        // 外部から録音中かどうかを判定できるフラグ
+        var isRunning = false
+            private set
     }
 }

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--================================================-->
 <!-- FILE: /app/src/main/res/layout/fragment_backup.xml -->
-<!-- VER : 1.01-21 -->
+<!-- VER : 1.01-22 -->
 <!--================================================-->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -94,6 +94,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
+            android:textSize="13sp"
             android:text="容量を計算して自動整理を実行" />
 
         <Button
@@ -102,6 +103,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:backgroundTint="#FF9800"
+            android:textSize="13sp"
             android:text="ZIPファイルとしてバックアップ保存" />
 
         <Button
@@ -110,6 +112,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:backgroundTint="#F44336"
+            android:textSize="13sp"
             android:text="ZIPファイルから復元する" />
 
     </LinearLayout>

@@ -1,5 +1,7 @@
-//app/src/main/java/co/neluvo/papa/HomeFragment.kt
-//ver 1.00-24
+//==================================================
+// FILE: /app/src/main/java/co/neluvo/papa/HomeFragment.kt
+// VER : 1.01-25
+//==================================================
 package co.neluvo.papa
 
 import android.Manifest
@@ -124,9 +126,13 @@ class HomeFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
+        
+        // 【追加】サービスが実際に動いているかどうかを確認してUIを同期する
+        isRecording = RecordingService.isRunning
+        updateUi()
+
         val filter = IntentFilter(RecordingService.ACTION_AMPLITUDE_UPDATE)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            // Context.RECEIVER_NOT_EXPORTED の直接値である 4 を使用
             requireContext().registerReceiver(amplitudeReceiver, filter, 4)
         } else {
             @Suppress("UnspecifiedRegisterReceiverFlag")
